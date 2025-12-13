@@ -7,7 +7,7 @@ const { testConnection } = require("../db/postgres");
 
 const app = express();
 
-app.use(cors());
+// app.use(cors());
 app.use(express.json());
 
 // Initialize RabbitMQ event system - Now using middleware
