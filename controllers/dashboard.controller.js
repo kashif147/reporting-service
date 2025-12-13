@@ -79,3 +79,14 @@ exports.getRegionBranchSummary = async (req, res) => {
     next(err);
   }
 };
+exports.getUnifiedDashboard = async (req, res, next) => {
+  try {
+    const filters = req.body;
+
+    const data = await dashboardService.getUnifiedDashboard(filters);
+
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+};

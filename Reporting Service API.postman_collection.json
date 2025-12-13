@@ -1,0 +1,285 @@
+{
+	"info": {
+		"_postman_id": "reporting-service-api",
+		"name": "Reporting Service API",
+		"description": "Complete API collection for Reporting Service endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "Root Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								""
+							]
+						},
+						"description": "Basic health check endpoint"
+					},
+					"response": []
+				},
+				{
+					"name": "Detailed Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/health",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"health"
+							]
+						},
+						"description": "Detailed health check with service status and metadata"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Unified Dashboard",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"from\": \"2024-01-01\",\n  \"to\": \"2024-12-31\",\n  \"categories\": [],\n  \"grades\": [],\n  \"sections\": [],\n  \"region\": null,\n  \"branch\": null,\n  \"workplace\": null,\n  \"includeStudents\": false,\n  \"status\": \"active\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{baseUrl}}/dashboard",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard"
+							]
+						},
+						"description": "Get unified dashboard data with filters. Returns KPIs, trends, distributions, and tables."
+					},
+					"response": []
+				},
+				{
+					"name": "Overview",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/overview",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"overview"
+							]
+						},
+						"description": "Get latest membership counts overview from mv_membership_counts"
+					},
+					"response": []
+				},
+				{
+					"name": "Trends",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/trends",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"trends"
+							]
+						},
+						"description": "Get membership trends over time from mv_membership_counts"
+					},
+					"response": []
+				},
+				{
+					"name": "Joiners",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/joiners",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"joiners"
+							]
+						},
+						"description": "Get monthly joiners data from mv_joiners"
+					},
+					"response": []
+				},
+				{
+					"name": "Leavers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/leavers",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"leavers"
+							]
+						},
+						"description": "Get monthly leavers data from mv_leavers"
+					},
+					"response": []
+				},
+				{
+					"name": "Net Change",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/net",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"net"
+							]
+						},
+						"description": "Get monthly net membership change from mv_net_membership"
+					},
+					"response": []
+				},
+				{
+					"name": "Category Distribution",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/categories",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"categories"
+							]
+						},
+						"description": "Get category distribution from mv_category_distribution"
+					},
+					"response": []
+				},
+				{
+					"name": "Grade Distribution",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/grades",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"grades"
+							]
+						},
+						"description": "Get grade distribution from mv_grade_distribution"
+					},
+					"response": []
+				},
+				{
+					"name": "Section Distribution",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/sections",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"sections"
+							]
+						},
+						"description": "Get section distribution from mv_section_distribution"
+					},
+					"response": []
+				},
+				{
+					"name": "Workplace Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/workplaces",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"workplaces"
+							]
+						},
+						"description": "Get workplace summary from mv_workplace_summary"
+					},
+					"response": []
+				},
+				{
+					"name": "Region Branch Summary",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/dashboard/regions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"dashboard",
+								"regions"
+							]
+						},
+						"description": "Get region and branch summary from mv_region_branch_summary"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:4005",
+			"type": "string"
+		}
+	]
+}
