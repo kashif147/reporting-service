@@ -2,15 +2,14 @@ version: "3.9"
 
 services:
   reporting-service:
-    build: .
     container_name: reporting-service
+    build: .
     ports:
       - "4005:4005"
     restart: always
     networks:
-      - shared-net
+      - gateway_app-net
 
 networks:
-  shared-net:
+  gateway_app-net:
     external: true
-    name: gateway_app-net
