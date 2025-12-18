@@ -1,12 +1,16 @@
 const { Pool } = require("pg");
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
+const pool = new Pool(
+  process.env.REPORTING_DB_URL
+    ? { connectionString: process.env.REPORTING_DB_URL }
+    : {
+        host: process.env.REPORTING_DB_HOST,
+        port: process.env.DB_PORT,
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME,
+      }
+);
 
 // Test database connectivity
 const testConnection = async () => {

@@ -1,14 +1,40 @@
 version: "3.9"
 
 services:
+  reporting-postgres:
+    image: postgres:16
+    container_name: reporting-postgres
+    restart: always
+    environment:
+      env_file:
+        - .env.staging
+    volumes:
+      - reporting_postgres_data:/var/lib/postgresql/data
+    networks:
+      - gateway_app-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reporting_user -d reporting_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
   reporting-service:
     container_name: reporting-service
     build: .
     ports:
       - "4005:4005"
     restart: always
+    depends_on:
+      reporting-postgres:
+        condition: service_healthy
+    environment:
+      env_file:
+        - .env.staging
     networks:
       - gateway_app-net
+
+volumes:
+  reporting_postgres_data:
 
 networks:
   gateway_app-net:

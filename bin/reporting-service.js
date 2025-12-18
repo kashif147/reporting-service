@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-dotenv.config();
+dotenv.config({ path: ".env.staging" });
 
 const { testConnection } = require("../db/postgres");
 
