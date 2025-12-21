@@ -165,7 +165,7 @@ import_data_only() {
 
 # Function to restore to local database
 restore_local() {
-    echo -e "${YELLOW}Restoring database to local environment...${NC}"
+    echo -e "${YELLOW}Restoring database to local environment (reporting-postgres container)...${NC}"
     
     if [ -z "$2" ]; then
         echo -e "${RED}Please provide backup file path${NC}"
@@ -181,13 +181,16 @@ restore_local() {
     fi
     
     if [ "$USE_DOCKER" = true ]; then
+        echo -e "${YELLOW}Using Docker container (psql not found locally)...${NC}"
         # Check if container is running
         if ! docker ps --format '{{.Names}}' | grep -q "^${LOCAL_CONTAINER}$"; then
             echo -e "${RED}✗ Docker container '$LOCAL_CONTAINER' is not running${NC}"
+            echo -e "${YELLOW}Start it with: cd postgres && docker-compose up -d${NC}"
             return 1
         fi
         
-        # Restore using Docker
+        # Restore using Docker - connect to postgres db to allow CREATE DATABASE
+        echo -e "${YELLOW}Restoring to reporting-postgres container...${NC}"
         docker exec -i "$LOCAL_CONTAINER" psql -U "$LOCAL_USER" -d postgres \
             < "$RESTORE_FILE"
     else
@@ -199,7 +202,7 @@ restore_local() {
     fi
     
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Restore successful${NC}\n"
+        echo -e "${GREEN}✓ Restore successful to reporting_db${NC}\n"
         return 0
     else
         echo -e "${RED}✗ Restore failed${NC}"
