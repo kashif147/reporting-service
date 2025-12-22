@@ -1,7 +1,25 @@
+/**
+ * Error Handler Middleware
+ * Prevents information leakage in production
+ */
 module.exports = (err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({
-    error: "Internal Server Error",
+  const requestId = req.id || req.headers["x-request-id"] || "unknown";
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  // Log full error details server-side for debugging
+  console.error(`[${requestId}] Error:`, {
     message: err.message,
+    stack: err.stack,
+    url: req.url,
+    method: req.method,
+    status: err.status || 500,
+  });
+  
+  // Generic message in production, detailed in development
+  const status = err.status || 500;
+  res.status(status).json({
+    error: "Internal Server Error",
+    requestId,
+    ...(isProduction ? {} : { message: err.message }),
   });
 };
