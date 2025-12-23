@@ -21,7 +21,7 @@
   },
   "homepage": "https://github.com/kashif147/reporting-service#readme",
   "dependencies": {
-    "@membership/policy-middleware": "github:kashif147/policy-middleware#gateway",
+    "@membership/policy-middleware": "file:../policy-middleware",
     "@projectShell/rabbitmq-middleware": "github:kashif147/rabbitmq-middleware",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
