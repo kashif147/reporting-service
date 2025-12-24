@@ -7,6 +7,9 @@ const errorHandler = require("./utils/error");
 
 const app = express();
 
+// Disable Express automatic ETag generation (304 responses)
+app.set("etag", false);
+
 // Security headers
 app.use(
   helmet({
