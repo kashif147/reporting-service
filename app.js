@@ -88,6 +88,10 @@ app.get("/", (req, res) => {
   res.send("Reporting Service Running");
 });
 
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "UP" });
+});
+
 // Routes
 app.use("/dashboard", dashboardRoutes);
 
