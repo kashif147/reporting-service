@@ -3,17 +3,20 @@
 ## Quick Restore
 
 ### Step 1: List Available Backups
+
 ```bash
 cd reporting-service
 ls -lh backups/
 ```
 
 ### Step 2: Restore Using Script
+
 ```bash
 ./scripts/export-import-db.sh restore-local backups/reporting_db_backup_YYYYMMDD_HHMMSS.sql
 ```
 
 **Example:**
+
 ```bash
 ./scripts/export-import-db.sh restore-local backups/reporting_db_backup_20241215_143022.sql
 ```
@@ -23,6 +26,7 @@ ls -lh backups/
 If you prefer to restore manually:
 
 ### Option 1: Restore via Docker exec
+
 ```bash
 # Make sure container is running
 docker ps | grep reporting-postgres
@@ -33,6 +37,7 @@ docker exec -i reporting-postgres psql -U reports_admin -d postgres \
 ```
 
 ### Option 2: Copy file to container and restore
+
 ```bash
 # Copy backup file to container
 docker cp backups/reporting_db_backup_YYYYMMDD_HHMMSS.sql reporting-postgres:/tmp/backup.sql
@@ -65,6 +70,7 @@ SELECT COUNT(*) FROM your_table_name;
 ## Troubleshooting
 
 ### Container Not Running
+
 ```bash
 # Start the container
 cd reporting-service/postgres
@@ -75,6 +81,7 @@ docker ps | grep reporting-postgres
 ```
 
 ### Database Already Exists Error
+
 The backup includes `--clean --if-exists` flags, so it should handle existing databases. If you still get errors:
 
 ```bash
@@ -87,6 +94,7 @@ docker exec -it reporting-postgres psql -U reports_admin -d postgres -c "CREATE 
 ```
 
 ### Permission Denied
+
 Make sure you're using the correct user (`reports_admin`) and the container has proper permissions.
 
 ## Complete Example
@@ -107,4 +115,3 @@ docker ps | grep reporting-postgres
 # 5. Verify restore
 docker exec -it reporting-postgres psql -U reports_admin -d reporting_db -c "\dt"
 ```
-

@@ -10,11 +10,13 @@ cd reporting-service
 ```
 
 This creates a backup file in `backups/` directory with timestamp:
+
 - Example: `backups/reporting_db_backup_20241215_143022.sql`
 
 ### Step 2: Restore the Backup
 
 #### Option A: Restore to Local Database
+
 ```bash
 # Restore to local database using script
 ./scripts/export-import-db.sh restore-local backups/reporting_db_backup_20241215_143022.sql
@@ -25,6 +27,7 @@ PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres 
 ```
 
 #### Option B: Restore to Staging Database
+
 ```bash
 # Set staging credentials
 export STAGING_DB_HOST="your-staging-host"
@@ -39,12 +42,14 @@ export STAGING_DB_PASSWORD="your-password"
 ### Backup Examples
 
 #### 1. Simple Backup (Schema + Data)
+
 ```bash
 cd reporting-service
 ./scripts/export-import-db.sh export
 ```
 
 #### 2. Manual Backup Command
+
 ```bash
 PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --clean --if-exists --create --format=plain \
@@ -52,12 +57,14 @@ PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d report
 ```
 
 #### 3. Backup from Docker Container
+
 ```bash
 docker exec reporting-postgres pg_dump -U reports_admin -d reporting_db \
   --clean --if-exists --create --format=plain > backup.sql
 ```
 
 #### 4. Compressed Backup (for large databases)
+
 ```bash
 PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --format=custom -f backup.dump
@@ -66,12 +73,14 @@ PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d report
 ### Restore Examples
 
 #### 1. Restore to Local Database (Plain SQL)
+
 ```bash
 PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
   -f backups/reporting_db_backup_20241215_143022.sql
 ```
 
 #### 2. Restore to Staging Database
+
 ```bash
 # Set environment variables
 export STAGING_DB_HOST="staging.example.com"
@@ -85,11 +94,13 @@ export STAGING_DB_PASSWORD="your-password"
 ```
 
 #### 3. Restore to Docker Container
+
 ```bash
 docker exec -i reporting-postgres psql -U reports_admin -d reporting_db < backup.sql
 ```
 
 #### 4. Restore Compressed Backup
+
 ```bash
 PGPASSWORD='Letme1nplz!' pg_restore -h localhost -p 5432 -U reports_admin \
   -d reporting_db --clean --if-exists backup.dump
@@ -132,6 +143,7 @@ PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres 
 ## Common Scenarios
 
 ### Scenario 1: Backup Before Making Changes
+
 ```bash
 # Create timestamped backup
 ./scripts/export-import-db.sh export
@@ -144,6 +156,7 @@ PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres 
 ```
 
 ### Scenario 2: Copy Local Data to Staging
+
 ```bash
 # Export from local
 ./scripts/export-import-db.sh export
@@ -155,6 +168,7 @@ export STAGING_DB_PASSWORD="staging-password"
 ```
 
 ### Scenario 3: Restore Specific Backup File
+
 ```bash
 # List available backups
 ls -lh backups/
@@ -168,28 +182,34 @@ ls -lh backups/
 ### Backup Issues
 
 **Error: "connection refused"**
+
 - Check if PostgreSQL is running: `docker ps` or `pg_isready`
 - Verify port 5432 is accessible
 
 **Error: "authentication failed"**
+
 - Verify credentials in docker-compose.yml
 - Check password is correct
 
 ### Restore Issues
 
 **Error: "database already exists"**
+
 - The script uses `--clean --if-exists` which should handle this
 - If still failing, manually drop database first:
+
 ```bash
 PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
   -c "DROP DATABASE IF EXISTS reporting_db;"
 ```
 
 **Error: "permission denied"**
+
 - Ensure user has CREATE DATABASE privilege
 - For staging, verify user has necessary permissions
 
 **Error: "relation already exists"**
+
 - Use `--clean --if-exists` flag (already included in script)
 - Or drop existing tables before restore
 
@@ -201,10 +221,9 @@ PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres 
 
 ## Quick Reference
 
-| Action | Command |
-|--------|---------|
-| Backup | `./scripts/export-import-db.sh export` |
-| Restore (local) | `./scripts/export-import-db.sh restore-local backup.sql` |
-| Restore (staging) | `./scripts/export-import-db.sh import backup.sql` |
-| List backups | `ls -lh backups/` |
-
+| Action            | Command                                                  |
+| ----------------- | -------------------------------------------------------- |
+| Backup            | `./scripts/export-import-db.sh export`                   |
+| Restore (local)   | `./scripts/export-import-db.sh restore-local backup.sql` |
+| Restore (staging) | `./scripts/export-import-db.sh import backup.sql`        |
+| List backups      | `ls -lh backups/`                                        |
