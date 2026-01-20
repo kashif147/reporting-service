@@ -115,3 +115,6 @@ docker ps | grep reporting-postgres
 # 5. Verify restore
 docker exec -it reporting-postgres psql -U reports_admin -d reporting_db -c "\dt"
 ```
+
+
+
