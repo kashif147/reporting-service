@@ -4,7 +4,7 @@ services:
     container_name: reporting-postgres
     restart: always
     env_file:
-      - /home/deploy/config/.env.common
+      - ${ENV_COMMON_PATH:-../../config/.env.common}
       - .env.staging
     volumes:
       - reporting_postgres_data:/var/lib/postgresql/data
@@ -27,13 +27,13 @@ services:
     ports:
       - "4005:4005"
     volumes:
-      - ./logs:/app/logs
+      - ../../logs:/var/log/projectshell
     restart: always
     depends_on:
       reporting-postgres:
         condition: service_healthy
     env_file:
-      - /home/deploy/config/.env.common
+      - ${ENV_COMMON_PATH:-../../config/.env.common}
       - .env.staging
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
