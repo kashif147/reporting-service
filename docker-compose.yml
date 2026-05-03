@@ -4,7 +4,7 @@ services:
     container_name: reporting-postgres
     restart: always
     env_file:
-      - ${ENV_COMMON_PATH:-../../config/.env.common}
+      - /home/deploy/config/.env.common
       - .env.staging
     volumes:
       - reporting_postgres_data:/var/lib/postgresql/data
