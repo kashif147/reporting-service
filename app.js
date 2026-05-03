@@ -4,6 +4,12 @@ const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const errorHandler = require("./utils/error");
+const bizLogger = require("./config/bizLogger.js");
+const {
+  correlationIdMiddleware,
+  logErrorMiddleware,
+  createSystemLogsRouter,
+} = require("@projectShell/logging-lib");
 
 const app = express();
 
@@ -76,6 +82,9 @@ app.use(limiter);
 
 app.use(express.json());
 
+app.use(correlationIdMiddleware);
+app.use("/api", createSystemLogsRouter(bizLogger));
+
 // Request ID middleware
 app.use((req, res, next) => {
   req.id = req.headers["x-request-id"] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -96,6 +105,7 @@ app.get("/health", (req, res) => {
 app.use("/dashboard", dashboardRoutes);
 
 // Error handler
+app.use(logErrorMiddleware(bizLogger));
 app.use(errorHandler);
 
 module.exports = app;

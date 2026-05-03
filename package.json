@@ -21,8 +21,9 @@
   },
   "homepage": "https://github.com/kashif147/reporting-service#readme",
   "dependencies": {
+    "@projectShell/logging-lib": "git+https://github.com/kashif147/logging-lib.git#main",
     "@membership/policy-middleware": "github:kashif147/policy-middleware#gateway",
-    "@projectShell/rabbitmq-middleware": "github:kashif147/rabbitmq-middleware#gateway",
+    "@projectShell/rabbitmq-middleware": "file:../rabbitmq-middleware",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.0",

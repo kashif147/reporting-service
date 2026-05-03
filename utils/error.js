@@ -4,6 +4,8 @@
  */
 module.exports = (err, req, res, next) => {
   const requestId = req.id || req.headers["x-request-id"] || "unknown";
+  const correlationId =
+    req.correlationId || req.headers["x-correlation-id"] || null;
   const isProduction = process.env.NODE_ENV === "production";
   
   // Log full error details server-side for debugging
@@ -20,6 +22,7 @@ module.exports = (err, req, res, next) => {
   res.status(status).json({
     error: "Internal Server Error",
     requestId,
+    correlationId,
     ...(isProduction ? {} : { message: err.message }),
   });
 };
