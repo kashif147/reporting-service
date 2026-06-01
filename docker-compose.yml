@@ -45,7 +45,19 @@ services:
       start_period: 30s
     networks:
       - gateway_app-net
-
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: reporting-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    depends_on:
+      - reporting-postgres
+    networks:
+      - gateway_app-net
 volumes:
   reporting_postgres_data:
 
