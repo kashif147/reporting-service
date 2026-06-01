@@ -1,5 +1,5 @@
 const { pool } = require("../db/postgres");
-const { segmentFilterSql } = require("../lib/memberSegment");
+const { appendSegmentFilter, segmentFilterSql } = require("../lib/memberSegment");
 const { monthRange } = require("../lib/reportingPeriods");
 
 const DIMENSION_COLUMNS = {
@@ -153,8 +153,9 @@ async function getKpiForPeriod(tenantId, year, month, segmentOpts) {
 }
 
 async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts) {
-  const seg = segmentFilterSql(segmentOpts, "member_segment", 2);
-  const params = [tenantId, asOfDate, ...seg.params];
+  const where = ["tenant_id = $1", "snapshot_date = $2::date"];
+  const params = [tenantId, asOfDate];
+  appendSegmentFilter(where, params, segmentOpts);
   const { rows } = await pool.query(
     `SELECT
       COUNT(*) FILTER (WHERE membership_status = 'Active')::int AS "activeTotal",
@@ -162,7 +163,7 @@ async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts) {
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'student')::int AS "studentActive",
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'honorary')::int AS "honoraryActive"
     FROM membership_period_snapshot
-    WHERE tenant_id = $1 AND snapshot_date = $2::date AND ${seg.sql}`,
+    WHERE ${where.join(" AND ")}`,
     params
   );
   return rows[0];
@@ -176,14 +177,15 @@ async function getDimensionBreakdownFromSnapshot(
 ) {
   const col = DIMENSION_COLUMNS[dimension];
   if (!col) throw new Error(`Unknown dimension: ${dimension}`);
-  const seg = segmentFilterSql(segmentOpts, "member_segment", 3);
-  const params = [tenantId, asOfDate, ...seg.params];
+  const where = ["tenant_id = $1", "snapshot_date = $2::date"];
+  const params = [tenantId, asOfDate];
+  appendSegmentFilter(where, params, segmentOpts);
   const { rows } = await pool.query(
     `SELECT
       COALESCE(NULLIF(TRIM(${col}::text), ''), '(blank)') AS name,
       COUNT(*) FILTER (WHERE membership_status = 'Active')::int AS count
     FROM membership_period_snapshot
-    WHERE tenant_id = $1 AND snapshot_date = $2::date AND ${seg.sql}
+    WHERE ${where.join(" AND ")}
     GROUP BY 1
     ORDER BY count DESC, name`,
     params

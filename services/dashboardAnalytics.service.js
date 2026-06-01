@@ -6,7 +6,7 @@ const {
   lastYearToDateEnd,
   monthRange,
 } = require("../lib/reportingPeriods");
-const { segmentFilterSql } = require("../lib/memberSegment");
+const { appendSegmentFilter } = require("../lib/memberSegment");
 const { ensurePeriodSnapshot } = require("./snapshotBuild.service");
 const {
   getDimensionBreakdownFromSnapshot,
@@ -30,9 +30,20 @@ async function countMtdFromListing(tenantId, segmentOpts) {
   const y = now.getUTCFullYear();
   const m = now.getUTCMonth() + 1;
   const { start, end } = monthRange(y, m);
-  const seg = segmentFilterSql(segmentOpts, "member_segment", 2);
   const monthStart = `${y}-${String(m).padStart(2, "0")}-01`;
   const today = now.toISOString().slice(0, 10);
+
+  const where = ["tenant_id = $1"];
+  const params = [tenantId];
+  appendSegmentFilter(where, params, segmentOpts);
+  const pMonthStart = params.length + 1;
+  params.push(monthStart);
+  const pToday = params.length + 1;
+  params.push(today);
+  const pRangeStart = params.length + 1;
+  params.push(start);
+  const pRangeEnd = params.length + 1;
+  params.push(end);
 
   const { rows } = await pool.query(
     `SELECT
@@ -42,15 +53,15 @@ async function countMtdFromListing(tenantId, segmentOpts) {
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'honorary')::int AS "honoraryActive",
       COUNT(*) FILTER (
         WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
-          AND start_date >= $4::date AND start_date <= $5::date
+          AND start_date >= $${pMonthStart}::date AND start_date <= $${pToday}::date
       )::int AS joiners,
       COUNT(*) FILTER (
-        WHERE (cancelled_at >= $6::timestamptz AND cancelled_at < $7::timestamptz)
-           OR (resigned_at >= $6::timestamptz AND resigned_at < $7::timestamptz)
+        WHERE (cancelled_at >= $${pRangeStart}::timestamptz AND cancelled_at < $${pRangeEnd}::timestamptz)
+           OR (resigned_at >= $${pRangeStart}::timestamptz AND resigned_at < $${pRangeEnd}::timestamptz)
       )::int AS leavers
     FROM membership_listing
-    WHERE tenant_id = $1 AND ${seg.sql}`,
-    [tenantId, ...seg.params, monthStart, today, start, end]
+    WHERE ${where.join(" AND ")}`,
+    params
   );
   const r = rows[0] || {};
   return {
