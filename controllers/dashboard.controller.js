@@ -44,6 +44,16 @@ exports.getNetChange = async (req, res) => {
     next(err);
   }
 };
+
+exports.getCategoryDistribution = async (req, res) => {
+  try {
+    const data = await dashboardService.getCategoryDistribution();
+    res.json(data);
+  } catch (err) {
+    next(err);
+  }
+};
+
 exports.getGradeDistribution = async (req, res) => {
   try {
     const data = await dashboardService.getGradeDistribution();
