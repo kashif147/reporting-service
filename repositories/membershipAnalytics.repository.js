@@ -87,8 +87,8 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
         WHERE resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz
       )::int AS resigned_in_month
     FROM membership_period_snapshot
-    WHERE tenant_id = $1 AND snapshot_date = $3::date`,
-    [tenantId, monthStart, asOfDate, start, end]
+    WHERE tenant_id = $1 AND snapshot_date = $2::date`,
+    [tenantId, asOfDate, monthStart, asOfDate, start, end]
   );
 
   const k = kpiRes.rows[0] || {};
