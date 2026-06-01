@@ -63,7 +63,13 @@ async function runComparisonReport(tenantId, body) {
   const resolvedA = resolvePeriod(periodA);
   const resolvedB = resolvePeriod(periodB);
 
-  const hadB = await hasPeriodSnapshot(tenantId, resolvedB.asOfDate);
+  const [hadA, hadB] = await Promise.all([
+    hasPeriodSnapshot(tenantId, resolvedA.asOfDate),
+    hasPeriodSnapshot(tenantId, resolvedB.asOfDate),
+  ]);
+  if (!hadA) {
+    await ensurePeriodSnapshot(tenantId, resolvedA.asOfDate);
+  }
   if (!hadB) {
     await ensurePeriodSnapshot(tenantId, resolvedB.asOfDate);
   }
@@ -73,7 +79,14 @@ async function runComparisonReport(tenantId, body) {
     getComparisonPeriodKpis(tenantId, resolvedB, segmentOpts),
   ]);
 
-  const dimensions = body.dimensions || ["membershipCategory"];
+  const dimensions =
+    body.dimensions || [
+      "membershipCategory",
+      "grade",
+      "region",
+      "branch",
+      "section",
+    ];
   const breakdown = {};
   for (const dim of dimensions) {
     if (!DIMENSION_COLUMNS[dim]) continue;
@@ -107,7 +120,14 @@ async function runDualComparisonReport(tenantId, body) {
   const base = {
     includeStudents: body.includeStudents === true,
     includeHonorary: body.includeHonorary === true,
-    dimensions: body.dimensions || ["membershipCategory"],
+    dimensions:
+      body.dimensions || [
+        "membershipCategory",
+        "grade",
+        "region",
+        "branch",
+        "section",
+      ],
   };
   const [sameMonthLastYear, yearEndVsCurrent] = await Promise.all([
     runComparisonReport(tenantId, {

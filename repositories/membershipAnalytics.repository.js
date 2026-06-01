@@ -315,13 +315,25 @@ async function getComparisonByDimension(
     getDimensionBreakdownFromSnapshot(tenantId, asOfDateA, dimension, segmentOpts),
     getDimensionBreakdownFromSnapshot(tenantId, asOfDateB, dimension, segmentOpts),
   ]);
-  const mapB = new Map(rowsB.map((r) => [r.name, r.count]));
-  return rowsA.map((r) => ({
-    name: r.name,
-    periodA: r.count,
-    periodB: mapB.get(r.name) || 0,
-    change: (mapB.get(r.name) || 0) - r.count,
-  }));
+  const mapA = new Map(
+    rowsA.map((r) => [r.name, Number(r.count) || 0])
+  );
+  const mapB = new Map(
+    rowsB.map((r) => [r.name, Number(r.count) || 0])
+  );
+  const names = new Set([...mapA.keys(), ...mapB.keys()]);
+  return [...names]
+    .map((name) => {
+      const periodA = mapA.get(name) ?? 0;
+      const periodB = mapB.get(name) ?? 0;
+      return { name, periodA, periodB, change: periodB - periodA };
+    })
+    .sort(
+      (a, b) =>
+        Math.abs(b.change) - Math.abs(a.change) ||
+        b.periodB - a.periodB ||
+        a.name.localeCompare(b.name)
+    );
 }
 
 module.exports = {
