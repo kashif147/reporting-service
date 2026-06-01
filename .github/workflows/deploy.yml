@@ -46,7 +46,20 @@ jobs:
       - name: Build and restart reporting-service
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VM_USER }}@${{ secrets.VM_HOST }} << 'EOF'
+            set -euo pipefail
             cd /home/deploy/membership-platform/reporting-service
             docker compose build --no-cache reporting-service
-            docker compose up -d reporting-service
+            docker compose up -d reporting-postgres reporting-service
+            echo "Waiting for reporting-service health..."
+            for i in $(seq 1 30); do
+              if docker exec reporting-service curl -sf http://localhost:4005/health >/dev/null 2>&1; then
+                echo "reporting-service is healthy"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "reporting-service failed to become healthy:"
+            docker compose ps
+            docker logs reporting-service --tail 80
+            exit 1
           EOF

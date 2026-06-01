@@ -1,4 +1,4 @@
-const pool = require("../db/postgres");
+const { pool } = require("../db/postgres");
 
 module.exports = {
   getOverview: async () => {
