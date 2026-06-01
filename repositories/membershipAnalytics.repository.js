@@ -1,6 +1,14 @@
 const { pool } = require("../db/postgres");
 const { appendSegmentFilter, segmentFilterSql } = require("../lib/memberSegment");
 const { monthRange } = require("../lib/reportingPeriods");
+const { hasPeriodSnapshot } = require("./membershipSnapshot.repository");
+
+const EMPTY_SNAPSHOT_KPI = {
+  activeTotal: 0,
+  paidActive: 0,
+  studentActive: 0,
+  honoraryActive: 0,
+};
 
 const DIMENSION_COLUMNS = {
   membershipCategory: "membership_category",
@@ -169,6 +177,23 @@ async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts) {
   return rows[0];
 }
 
+async function getSnapshotKpiIfExists(tenantId, asOfDate, segmentOpts) {
+  if (!(await hasPeriodSnapshot(tenantId, asOfDate))) {
+    return { ...EMPTY_SNAPSHOT_KPI };
+  }
+  return getKpiFromSnapshot(tenantId, asOfDate, segmentOpts);
+}
+
+async function getMonthlyHeadlineKpi(tenantId, year, month) {
+  const { rows } = await pool.query(
+    `SELECT active_total, joiners, leavers, net_growth
+     FROM membership_kpi_monthly
+     WHERE tenant_id = $1 AND period_year = $2 AND period_month = $3`,
+    [tenantId, year, month]
+  );
+  return rows[0] || null;
+}
+
 async function getDimensionBreakdownFromSnapshot(
   tenantId,
   asOfDate,
@@ -244,10 +269,37 @@ async function getLiveStatsMonthly(tenantId, filters) {
   return rows;
 }
 
+async function getComparisonPeriodKpis(tenantId, resolved, segmentOpts) {
+  const snap = await getSnapshotKpiIfExists(
+    tenantId,
+    resolved.asOfDate,
+    segmentOpts
+  );
+  const monthly = await getMonthlyHeadlineKpi(
+    tenantId,
+    resolved.year,
+    resolved.month
+  );
+  const joiners = Number(monthly?.joiners) || 0;
+  const leavers = Number(monthly?.leavers) || 0;
+  return {
+    activeTotal: snap?.activeTotal ?? 0,
+    paidActive: snap?.paidActive ?? 0,
+    studentActive: snap?.studentActive ?? 0,
+    honoraryActive: snap?.honoraryActive ?? 0,
+    joiners,
+    leavers,
+    netGrowth:
+      monthly?.net_growth != null
+        ? Number(monthly.net_growth)
+        : joiners - leavers,
+  };
+}
+
 async function getComparisonKpis(tenantId, asOfDateA, asOfDateB, segmentOpts) {
   const [a, b] = await Promise.all([
-    getKpiFromSnapshot(tenantId, asOfDateA, segmentOpts),
-    getKpiFromSnapshot(tenantId, asOfDateB, segmentOpts),
+    getSnapshotKpiIfExists(tenantId, asOfDateA, segmentOpts),
+    getSnapshotKpiIfExists(tenantId, asOfDateB, segmentOpts),
   ]);
   return { periodA: a, periodB: b };
 }
@@ -277,9 +329,13 @@ module.exports = {
   computeAndStoreMonthlyMetrics,
   getKpiForPeriod,
   getKpiFromSnapshot,
+  getSnapshotKpiIfExists,
+  getMonthlyHeadlineKpi,
+  getComparisonPeriodKpis,
   getDimensionBreakdownFromSnapshot,
   getLiveStatsMonthly,
   getComparisonKpis,
   getComparisonByDimension,
   DIMENSION_COLUMNS,
+  EMPTY_SNAPSHOT_KPI,
 };

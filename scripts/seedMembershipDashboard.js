@@ -25,9 +25,9 @@ const { computeAndStoreMonthlyMetrics } = require("../repositories/membershipAna
 const {
   currentMonthPeriod,
   previousMonthPeriod,
-  sameMonthLastYear,
   yearToDateEnd,
   lastYearToDateEnd,
+  sameMonthLastYear,
 } = require("../lib/reportingPeriods");
 const {
   loadSeedLookups,
@@ -150,6 +150,23 @@ async function clearSeedData(tenantId) {
   );
 }
 
+/** Remove comparison snapshots that were backfilled from current listing (misleading KPIs). */
+async function clearBackfilledPriorYearSnapshots(tenantId) {
+  const dates = [
+    previousMonthPeriod().asOfDate,
+    lastYearToDateEnd().asOfDate,
+    sameMonthLastYear().asOfDate,
+  ];
+  const res = await pool.query(
+    `DELETE FROM membership_period_snapshot
+     WHERE tenant_id = $1 AND snapshot_date = ANY($2::date[])`,
+    [tenantId, dates]
+  );
+  if (res.rowCount > 0) {
+    console.log(`  removed ${res.rowCount} backfilled prior-year snapshot row(s)`);
+  }
+}
+
 async function upsertListingRows(rows) {
   const cols = [
     "tenant_id",
@@ -209,13 +226,8 @@ async function upsertListingRows(rows) {
 }
 
 async function rebuildSnapshots(tenantId) {
-  const periods = [
-    currentMonthPeriod(),
-    previousMonthPeriod(),
-    sameMonthLastYear(),
-    yearToDateEnd(),
-    lastYearToDateEnd(),
-  ];
+  // Current month + YTD only — do not backfill prior month/year from today's listing.
+  const periods = [currentMonthPeriod(), yearToDateEnd()];
   const seenMonths = new Set();
 
   for (const period of periods) {
@@ -247,6 +259,7 @@ async function main() {
 
   if (opts.clear) {
     await clearSeedData(tenantId);
+    await clearBackfilledPriorYearSnapshots(tenantId);
     console.log("  cleared prior seed-dashboard-* rows");
   }
 

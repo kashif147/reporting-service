@@ -51,6 +51,18 @@ API flags: `includeStudents`, `includeHonorary` (default both **false** = paid o
 { "preset": "same_month_last_year" }
 ```
 
+**Prior year-end vs current month-end:**
+
+```json
+{ "preset": "year_end_vs_current" }
+```
+
+**Executive dashboard (both at once):**
+
+```json
+{ "dual": true, "includeStudents": false, "includeHonorary": false }
+```
+
 Or explicit periods as above with `year: 2025, month: 5` and `year: 2026, month: 5`.
 
 Response includes `periodA`, `periodB`, `kpiChange`, and `breakdown` per dimension (count A, count B, change).

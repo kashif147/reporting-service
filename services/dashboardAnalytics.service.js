@@ -8,9 +8,11 @@ const {
 } = require("../lib/reportingPeriods");
 const { appendSegmentFilter } = require("../lib/memberSegment");
 const { ensurePeriodSnapshot } = require("./snapshotBuild.service");
+const { hasPeriodSnapshot } = require("../repositories/membershipSnapshot.repository");
 const {
   getDimensionBreakdownFromSnapshot,
   getKpiFromSnapshot,
+  getSnapshotKpiIfExists,
 } = require("../repositories/membershipAnalytics.repository");
 
 function compareKpi(current, prior) {
@@ -86,19 +88,24 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
   const ytd = yearToDateEnd();
   const lytd = lastYearToDateEnd();
 
+  const [hasPriorMonthSnapshot, hasPriorYearSnapshot] = await Promise.all([
+    hasPeriodSnapshot(tenantId, prev.asOfDate),
+    hasPeriodSnapshot(tenantId, lytd.asOfDate),
+  ]);
+
+  // Only ensure current-period snapshots. Do not backfill prior-year / prior-month
+  // from today's listing (that would duplicate current totals as "prior").
   await Promise.all([
     ensurePeriodSnapshot(tenantId, cur.asOfDate),
-    ensurePeriodSnapshot(tenantId, prev.asOfDate),
     ensurePeriodSnapshot(tenantId, ytd.asOfDate),
-    ensurePeriodSnapshot(tenantId, lytd.asOfDate),
   ]);
 
   const [liveKpi, snapCur, snapPrev, snapYtd, snapLytd] = await Promise.all([
     countMtdFromListing(tenantId, segmentOpts),
     getKpiFromSnapshot(tenantId, cur.asOfDate, segmentOpts),
-    getKpiFromSnapshot(tenantId, prev.asOfDate, segmentOpts),
+    getSnapshotKpiIfExists(tenantId, prev.asOfDate, segmentOpts),
     getKpiFromSnapshot(tenantId, ytd.asOfDate, segmentOpts),
-    getKpiFromSnapshot(tenantId, lytd.asOfDate, segmentOpts),
+    getSnapshotKpiIfExists(tenantId, lytd.asOfDate, segmentOpts),
   ]);
 
   let prevMonthKpi = {};
@@ -169,6 +176,8 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
     distributions,
     asOfDate: cur.asOfDate,
     filtersApplied: dashboardFilters,
+    hasPriorMonthSnapshot,
+    hasPriorYearSnapshot,
   };
 }
 

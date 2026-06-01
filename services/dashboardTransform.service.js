@@ -88,6 +88,8 @@ function toMembershipDashboardShape(api) {
       count: n(row.count),
     })),
     asOfDate: api.asOfDate,
+    hasPriorMonthSnapshot: api.hasPriorMonthSnapshot === true,
+    hasPriorYearSnapshot: api.hasPriorYearSnapshot === true,
   };
 }
 

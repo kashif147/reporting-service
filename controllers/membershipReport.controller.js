@@ -58,10 +58,10 @@ exports.getComparisonReport = async (req, res, next) => {
         error: { message: "Tenant required", code: "TENANT_REQUIRED" },
       });
     }
-    const data = await comparisonReportService.runComparisonReport(
-      tenantId,
-      req.body || {}
-    );
+    const body = req.body || {};
+    const data = body.dual
+      ? await comparisonReportService.runDualComparisonReport(tenantId, body)
+      : await comparisonReportService.runComparisonReport(tenantId, body);
     res.json({ status: "success", data });
   } catch (err) {
     next(err);
