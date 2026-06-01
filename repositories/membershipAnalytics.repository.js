@@ -1,5 +1,9 @@
 const { pool } = require("../db/postgres");
 const { appendSegmentFilter, segmentFilterSql } = require("../lib/memberSegment");
+const {
+  appendDimensionFilters,
+  hasDimensionFilters,
+} = require("../lib/membershipDimensionFilters");
 const { monthRange } = require("../lib/reportingPeriods");
 const { hasPeriodSnapshot } = require("./membershipSnapshot.repository");
 
@@ -160,10 +164,11 @@ async function getKpiForPeriod(tenantId, year, month, segmentOpts) {
   return rows[0] || null;
 }
 
-async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts) {
+async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts, dimensionOpts = {}) {
   const where = ["tenant_id = $1", "snapshot_date = $2::date"];
   const params = [tenantId, asOfDate];
   appendSegmentFilter(where, params, segmentOpts);
+  appendDimensionFilters(where, params, dimensionOpts);
   const { rows } = await pool.query(
     `SELECT
       COUNT(*) FILTER (WHERE membership_status = 'Active')::int AS "activeTotal",
@@ -177,11 +182,58 @@ async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts) {
   return rows[0];
 }
 
-async function getSnapshotKpiIfExists(tenantId, asOfDate, segmentOpts) {
+async function getSnapshotKpiIfExists(tenantId, asOfDate, segmentOpts, dimensionOpts = {}) {
   if (!(await hasPeriodSnapshot(tenantId, asOfDate))) {
     return { ...EMPTY_SNAPSHOT_KPI };
   }
-  return getKpiFromSnapshot(tenantId, asOfDate, segmentOpts);
+  return getKpiFromSnapshot(tenantId, asOfDate, segmentOpts, dimensionOpts);
+}
+
+async function getMonthMovementKpiFromSnapshot(
+  tenantId,
+  asOfDate,
+  year,
+  month,
+  segmentOpts,
+  dimensionOpts = {}
+) {
+  const { start, end } = monthRange(year, month);
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+  const where = ["tenant_id = $1", "snapshot_date = $2::date"];
+  const params = [tenantId, asOfDate];
+  appendSegmentFilter(where, params, segmentOpts);
+  appendDimensionFilters(where, params, dimensionOpts);
+  const pMonthStart = params.length + 1;
+  params.push(monthStart);
+  const pAsOf = params.length + 1;
+  params.push(asOfDate);
+  const pRangeStart = params.length + 1;
+  params.push(start);
+  const pRangeEnd = params.length + 1;
+  params.push(end);
+
+  const { rows } = await pool.query(
+    `SELECT
+      COUNT(*) FILTER (
+        WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+          AND start_date >= $${pMonthStart}::date AND start_date <= $${pAsOf}::date
+      )::int AS joiners,
+      COUNT(*) FILTER (
+        WHERE (cancelled_at >= $${pRangeStart}::timestamptz AND cancelled_at < $${pRangeEnd}::timestamptz)
+           OR (resigned_at >= $${pRangeStart}::timestamptz AND resigned_at < $${pRangeEnd}::timestamptz)
+      )::int AS leavers
+    FROM membership_period_snapshot
+    WHERE ${where.join(" AND ")}`,
+    params
+  );
+  const r = rows[0] || {};
+  const joiners = r.joiners || 0;
+  const leavers = r.leavers || 0;
+  return {
+    joiners,
+    leavers,
+    net_growth: joiners - leavers,
+  };
 }
 
 async function getMonthlyHeadlineKpi(tenantId, year, month) {
@@ -198,13 +250,15 @@ async function getDimensionBreakdownFromSnapshot(
   tenantId,
   asOfDate,
   dimension,
-  segmentOpts
+  segmentOpts,
+  dimensionOpts = {}
 ) {
   const col = DIMENSION_COLUMNS[dimension];
   if (!col) throw new Error(`Unknown dimension: ${dimension}`);
   const where = ["tenant_id = $1", "snapshot_date = $2::date"];
   const params = [tenantId, asOfDate];
   appendSegmentFilter(where, params, segmentOpts);
+  appendDimensionFilters(where, params, dimensionOpts);
   const { rows } = await pool.query(
     `SELECT
       COALESCE(NULLIF(TRIM(${col}::text), ''), '(blank)') AS name,
@@ -269,19 +323,46 @@ async function getLiveStatsMonthly(tenantId, filters) {
   return rows;
 }
 
-async function getComparisonPeriodKpis(tenantId, resolved, segmentOpts) {
+async function getComparisonPeriodKpis(
+  tenantId,
+  resolved,
+  segmentOpts,
+  dimensionOpts = {}
+) {
   const snap = await getSnapshotKpiIfExists(
     tenantId,
     resolved.asOfDate,
-    segmentOpts
+    segmentOpts,
+    dimensionOpts
   );
-  const monthly = await getMonthlyHeadlineKpi(
-    tenantId,
-    resolved.year,
-    resolved.month
-  );
-  const joiners = Number(monthly?.joiners) || 0;
-  const leavers = Number(monthly?.leavers) || 0;
+  let joiners;
+  let leavers;
+  let netGrowth;
+  if (hasDimensionFilters(dimensionOpts)) {
+    const mov = await getMonthMovementKpiFromSnapshot(
+      tenantId,
+      resolved.asOfDate,
+      resolved.year,
+      resolved.month,
+      segmentOpts,
+      dimensionOpts
+    );
+    joiners = mov.joiners;
+    leavers = mov.leavers;
+    netGrowth = mov.net_growth;
+  } else {
+    const monthly = await getMonthlyHeadlineKpi(
+      tenantId,
+      resolved.year,
+      resolved.month
+    );
+    joiners = Number(monthly?.joiners) || 0;
+    leavers = Number(monthly?.leavers) || 0;
+    netGrowth =
+      monthly?.net_growth != null
+        ? Number(monthly.net_growth)
+        : joiners - leavers;
+  }
   return {
     activeTotal: snap?.activeTotal ?? 0,
     paidActive: snap?.paidActive ?? 0,
@@ -289,10 +370,7 @@ async function getComparisonPeriodKpis(tenantId, resolved, segmentOpts) {
     honoraryActive: snap?.honoraryActive ?? 0,
     joiners,
     leavers,
-    netGrowth:
-      monthly?.net_growth != null
-        ? Number(monthly.net_growth)
-        : joiners - leavers,
+    netGrowth,
   };
 }
 
@@ -309,11 +387,24 @@ async function getComparisonByDimension(
   asOfDateA,
   asOfDateB,
   dimension,
-  segmentOpts
+  segmentOpts,
+  dimensionOpts = {}
 ) {
   const [rowsA, rowsB] = await Promise.all([
-    getDimensionBreakdownFromSnapshot(tenantId, asOfDateA, dimension, segmentOpts),
-    getDimensionBreakdownFromSnapshot(tenantId, asOfDateB, dimension, segmentOpts),
+    getDimensionBreakdownFromSnapshot(
+      tenantId,
+      asOfDateA,
+      dimension,
+      segmentOpts,
+      dimensionOpts
+    ),
+    getDimensionBreakdownFromSnapshot(
+      tenantId,
+      asOfDateB,
+      dimension,
+      segmentOpts,
+      dimensionOpts
+    ),
   ]);
   const mapA = new Map(
     rowsA.map((r) => [r.name, Number(r.count) || 0])
@@ -344,6 +435,7 @@ module.exports = {
   getSnapshotKpiIfExists,
   getMonthlyHeadlineKpi,
   getComparisonPeriodKpis,
+  getMonthMovementKpiFromSnapshot,
   getDimensionBreakdownFromSnapshot,
   getLiveStatsMonthly,
   getComparisonKpis,

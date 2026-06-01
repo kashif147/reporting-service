@@ -10,6 +10,7 @@ const {
   getComparisonByDimension,
   DIMENSION_COLUMNS,
 } = require("../repositories/membershipAnalytics.repository");
+const { normalizeMembershipDimensionFilters } = require("../lib/membershipDimensionFilters");
 
 function kpiDelta(a, b) {
   const num = (v) => Number(v) || 0;
@@ -24,16 +25,25 @@ function kpiDelta(a, b) {
   };
 }
 
+function getReferenceDate(body) {
+  const y = Number(body.referenceYear);
+  const m = Number(body.referenceMonth);
+  if (y >= 2000 && m >= 1 && m <= 12) {
+    return new Date(Date.UTC(y, m - 1, 1));
+  }
+  return new Date();
+}
+
 function resolvePresetPeriods(body) {
   let periodA = body.periodA;
   let periodB = body.periodB;
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = now.getUTCMonth() + 1;
+  const ref = getReferenceDate(body);
+  const y = ref.getUTCFullYear();
+  const m = ref.getUTCMonth() + 1;
 
   if (body.preset === "last_month_vs_current") {
-    const prev = previousMonthPeriod();
-    const cur = currentMonthPeriod();
+    const prev = previousMonthPeriod(ref);
+    const cur = resolvePeriod({ type: "month_end", year: y, month: m });
     periodA = { type: "month_end", year: prev.year, month: prev.month };
     periodB = { type: "month_end", year: cur.year, month: cur.month };
   } else if (body.preset === "same_month_last_year") {
@@ -58,6 +68,9 @@ async function runComparisonReport(tenantId, body) {
     includeStudents: body.includeStudents === true,
     includeHonorary: body.includeHonorary === true,
   };
+  const dimensionOpts = normalizeMembershipDimensionFilters(
+    body.filters || body
+  );
 
   const { periodA, periodB } = resolvePresetPeriods(body);
   const resolvedA = resolvePeriod(periodA);
@@ -75,8 +88,8 @@ async function runComparisonReport(tenantId, body) {
   }
 
   const [periodAKpis, periodBKpis] = await Promise.all([
-    getComparisonPeriodKpis(tenantId, resolvedA, segmentOpts),
-    getComparisonPeriodKpis(tenantId, resolvedB, segmentOpts),
+    getComparisonPeriodKpis(tenantId, resolvedA, segmentOpts, dimensionOpts),
+    getComparisonPeriodKpis(tenantId, resolvedB, segmentOpts, dimensionOpts),
   ]);
 
   const dimensions =
@@ -95,7 +108,8 @@ async function runComparisonReport(tenantId, body) {
       resolvedA.asOfDate,
       resolvedB.asOfDate,
       dim,
-      segmentOpts
+      segmentOpts,
+      dimensionOpts
     );
   }
 
@@ -128,6 +142,7 @@ async function runDualComparisonReport(tenantId, body) {
         "branch",
         "section",
       ],
+    ...normalizeMembershipDimensionFilters(body.filters || body),
   };
   const [sameMonthLastYear, yearEndVsCurrent] = await Promise.all([
     runComparisonReport(tenantId, {
