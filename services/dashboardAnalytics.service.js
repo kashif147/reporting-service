@@ -18,7 +18,9 @@ const {
   ensureMonthlyMetricsForPeriod,
   ensureTrendMonthlyMetrics,
 } = require("./snapshotBuild.service");
-const { hasPeriodSnapshot } = require("../repositories/membershipSnapshot.repository");
+const {
+  hasPeriodSnapshot,
+} = require("../repositories/membershipSnapshot.repository");
 const {
   getDimensionBreakdownFromSnapshot,
   getKpiFromSnapshot,
@@ -40,7 +42,8 @@ function compareKpi(current, prior) {
     current: c,
     prior: p,
     change: c - p,
-    changePct: p === 0 ? (c === 0 ? 0 : 100) : Math.round(((c - p) / p) * 1000) / 10,
+    changePct:
+      p === 0 ? (c === 0 ? 0 : 100) : Math.round(((c - p) / p) * 1000) / 10,
   };
 }
 
@@ -82,15 +85,16 @@ async function countMtdFromListing(
   segmentOpts,
   year,
   month,
-  dimensionOpts = {}
+  dimensionOpts = {},
 ) {
   const y = year ?? new Date().getUTCFullYear();
   const m = month ?? new Date().getUTCMonth() + 1;
   const { start, end } = monthRange(y, m);
   const monthStart = `${y}-${String(m).padStart(2, "0")}-01`;
   const today = new Date().toISOString().slice(0, 10);
-  const asOfDay =
-    isCurrentCalendarMonth(y, m) ? today : `${y}-${String(m).padStart(2, "0")}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
+  const asOfDay = isCurrentCalendarMonth(y, m)
+    ? today
+    : `${y}-${String(m).padStart(2, "0")}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, "0")}`;
 
   const where = ["tenant_id = $1"];
   const params = [tenantId];
@@ -121,7 +125,7 @@ async function countMtdFromListing(
       )::int AS leavers
     FROM membership_listing
     WHERE ${where.join(" AND ")}`,
-    params
+    params,
   );
   const r = rows[0] || {};
   return {
@@ -140,7 +144,7 @@ async function getMonthlyKpiRow(tenantId, year, month) {
     const { rows } = await pool.query(
       `SELECT joiners, leavers, net_growth FROM membership_kpi_monthly
        WHERE tenant_id = $1 AND period_year = $2 AND period_month = $3`,
-      [tenantId, year, month]
+      [tenantId, year, month],
     );
     return rows[0] || {};
   } catch {
@@ -156,7 +160,8 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
   const dimensionOpts = normalizeMembershipDimensionFilters(filters);
   const useDimensionFilters = hasDimensionFilters(dimensionOpts);
 
-  const { cur, prev, ytd, lytd, isCurrentMonth } = resolveDashboardPeriods(filters);
+  const { cur, prev, ytd, lytd, isCurrentMonth } =
+    resolveDashboardPeriods(filters);
 
   const [hasPriorMonthSnapshot, hasPriorYearSnapshot] = await Promise.all([
     hasPeriodSnapshot(tenantId, prev.asOfDate),
@@ -177,7 +182,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       segmentOpts,
       cur.year,
       cur.month,
-      dimensionOpts
+      dimensionOpts,
     ),
     getKpiFromSnapshot(tenantId, cur.asOfDate, segmentOpts, dimensionOpts),
     getSnapshotKpiIfExists(tenantId, prev.asOfDate, segmentOpts, dimensionOpts),
@@ -192,7 +197,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
         prev.year,
         prev.month,
         segmentOpts,
-        dimensionOpts
+        dimensionOpts,
       )
     : await getMonthlyKpiRow(tenantId, prev.year, prev.month);
   const selectedMonthKpi =
@@ -204,7 +209,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
             cur.year,
             cur.month,
             segmentOpts,
-            dimensionOpts
+            dimensionOpts,
           )
         : {}
       : await getMonthlyKpiRow(tenantId, cur.year, cur.month);
@@ -222,43 +227,49 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       };
 
   const [ytdMov, lytdMov] = await Promise.all([
-    sumYtdMovement(
-      tenantId,
-      cur.year,
-      cur.month,
-      segmentOpts,
-      dimensionOpts
-    ),
+    sumYtdMovement(tenantId, cur.year, cur.month, segmentOpts, dimensionOpts),
     sumYtdMovement(
       tenantId,
       cur.year - 1,
       cur.month,
       segmentOpts,
-      dimensionOpts
+      dimensionOpts,
     ),
   ]);
 
   const kpis = {
-    totalActiveMembers: compareKpi(periodKpi.activeTotal, snapPrev?.activeTotal),
+    totalActiveMembers: compareKpi(
+      periodKpi.activeTotal,
+      snapPrev?.activeTotal,
+    ),
     newJoiners: compareKpi(
       periodKpi.joiners,
-      Number(prevMonthKpi.joiners) || 0
+      Number(prevMonthKpi.joiners) || 0,
     ),
-    leavers: compareKpi(
-      periodKpi.leavers,
-      Number(prevMonthKpi.leavers) || 0
-    ),
+    leavers: compareKpi(periodKpi.leavers, Number(prevMonthKpi.leavers) || 0),
     netGrowth: compareKpi(
       periodKpi.netGrowth,
-      Number(prevMonthKpi.net_growth) || 0
+      Number(prevMonthKpi.net_growth) || 0,
     ),
     paidMembers: compareKpi(periodKpi.paidActive, snapPrev?.paidActive),
-    studentMembers: compareKpi(periodKpi.studentActive, snapPrev?.studentActive),
-    honoraryMembers: compareKpi(periodKpi.honoraryActive, snapPrev?.honoraryActive),
+    studentMembers: compareKpi(
+      periodKpi.studentActive,
+      snapPrev?.studentActive,
+    ),
+    honoraryMembers: compareKpi(
+      periodKpi.honoraryActive,
+      snapPrev?.honoraryActive,
+    ),
     ytdActive: compareKpi(snapYtd?.activeTotal, snapLytd?.activeTotal),
     ytdPaidMembers: compareKpi(snapYtd?.paidActive, snapLytd?.paidActive),
-    ytdStudentMembers: compareKpi(snapYtd?.studentActive, snapLytd?.studentActive),
-    ytdHonoraryMembers: compareKpi(snapYtd?.honoraryActive, snapLytd?.honoraryActive),
+    ytdStudentMembers: compareKpi(
+      snapYtd?.studentActive,
+      snapLytd?.studentActive,
+    ),
+    ytdHonoraryMembers: compareKpi(
+      snapYtd?.honoraryActive,
+      snapLytd?.honoraryActive,
+    ),
     ytdJoiners: compareKpi(ytdMov.joiners, lytdMov.joiners),
     ytdLeavers: compareKpi(ytdMov.leavers, lytdMov.leavers),
     ytdNetGrowth: compareKpi(ytdMov.net_growth, lytdMov.net_growth),
@@ -268,7 +279,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       leavers: compareKpi(periodKpi.leavers, Number(prevMonthKpi.leavers) || 0),
       netGrowth: compareKpi(
         periodKpi.netGrowth,
-        Number(prevMonthKpi.net_growth) || 0
+        Number(prevMonthKpi.net_growth) || 0,
       ),
     },
   };
@@ -288,9 +299,9 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
         cur.asOfDate,
         dim,
         segmentOpts,
-        dimensionOpts
+        dimensionOpts,
       );
-    })
+    }),
   );
 
   const [
@@ -307,7 +318,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       cur.year,
       cur.month,
       segmentOpts,
-      dimensionOpts
+      dimensionOpts,
     ),
     getMovementBreakdownByDimension(
       tenantId,
@@ -317,7 +328,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       "membershipCategory",
       segmentOpts,
       dimensionOpts,
-      { limit: 20 }
+      { limit: 20 },
     ),
     getMovementBreakdownByDimension(
       tenantId,
@@ -327,7 +338,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       "branch",
       segmentOpts,
       dimensionOpts,
-      { limit: 12 }
+      { limit: 12 },
     ),
     getMovementBreakdownByDimension(
       tenantId,
@@ -337,7 +348,7 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       "grade",
       segmentOpts,
       dimensionOpts,
-      { limit: 12 }
+      { limit: 12 },
     ),
     getMovementBreakdownByDimension(
       tenantId,
@@ -347,14 +358,14 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
       "section",
       segmentOpts,
       dimensionOpts,
-      { limit: 12 }
+      { limit: 12 },
     ),
     getMovementTrend12Months(
       tenantId,
       cur.year,
       cur.month,
       segmentOpts,
-      dimensionOpts
+      dimensionOpts,
     ),
   ]);
 
@@ -364,7 +375,11 @@ async function getUnifiedDashboard(tenantId, filters = {}) {
     kpis,
     distributions,
     movementAnalytics: {
-      selectedPeriod: { year: cur.year, month: cur.month, asOfDate: cur.asOfDate },
+      selectedPeriod: {
+        year: cur.year,
+        month: cur.month,
+        asOfDate: cur.asOfDate,
+      },
       headline: movementHeadline,
       byCategory: movementByCategory,
       byBranch: movementByBranch,

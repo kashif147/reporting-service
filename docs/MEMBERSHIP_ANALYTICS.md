@@ -2,12 +2,12 @@
 
 ## Data model (`reporting_db` / schema `reports`)
 
-| Table | Purpose |
-|-------|---------|
-| `membership_listing` | Current denormalised member rows (source for snapshots) |
-| `membership_period_snapshot` | Member-level **as-of** copy for a calendar date |
-| `membership_kpi_monthly` | Monthly headline KPIs + movement split (`new_join_in_month`, `rejoin_in_month`, `reinstate_in_month`, `cancelled_in_month`, `resigned_in_month`) |
-| `membership_dimension_monthly` | Same metrics by dimension (`membershipCategory`, `grade`, `branch`, `region`, `section`, `workLocation`) and `member_segment` |
+| Table                          | Purpose                                                                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `membership_listing`           | Current denormalised member rows (source for snapshots)                                                                                          |
+| `membership_period_snapshot`   | Member-level **as-of** copy for a calendar date                                                                                                  |
+| `membership_kpi_monthly`       | Monthly headline KPIs + movement split (`new_join_in_month`, `rejoin_in_month`, `reinstate_in_month`, `cancelled_in_month`, `resigned_in_month`) |
+| `membership_dimension_monthly` | Same metrics by dimension (`membershipCategory`, `grade`, `branch`, `region`, `section`, `workLocation`) and `member_segment`                    |
 
 Run migrations before deploy:
 
@@ -60,17 +60,17 @@ Header: `x-tenant-id`, `Authorization`
 
 ### Request body (`filters` object or top-level)
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `year` | number | Selected calendar year (e.g. 2026) |
-| `month` | number | Selected month 1–12 |
-| `includeStudents` | boolean | Include student segment |
-| `includeHonorary` | boolean | Include honorary segment |
+| Field                  | Type     | Description                                 |
+| ---------------------- | -------- | ------------------------------------------- |
+| `year`                 | number   | Selected calendar year (e.g. 2026)          |
+| `month`                | number   | Selected month 1–12                         |
+| `includeStudents`      | boolean  | Include student segment                     |
+| `includeHonorary`      | boolean  | Include honorary segment                    |
 | `membershipCategories` | string[] | Filter (toolbar label: Membership Category) |
-| `grades` | string[] | Filter |
-| `sections` | string[] | Filter (Section Primary) |
-| `regions` | string[] | Filter |
-| `branches` | string[] | Filter |
+| `grades`               | string[] | Filter                                      |
+| `sections`             | string[] | Filter (Section Primary)                    |
+| `regions`              | string[] | Filter                                      |
+| `branches`             | string[] | Filter                                      |
 
 Toolbar labels are also accepted: `"Membership Category"`, `Grade`, etc.
 
@@ -90,28 +90,28 @@ Example:
 
 ### Response (`data` after unwrap)
 
-| Block | Content |
-|-------|---------|
-| `kpis` | Headline compare objects (`totalActiveMembers`, `newJoiners`, `leavers`, `netGrowth`, segment counts, `ytdActive`, `ytdJoiners`, `thisMonthVsLastMonth`, …) |
-| `distributions` | Active count by category, grade, section, branch, region (middle-row charts) |
-| `movementAnalytics` | **Membership Analytics** section |
-| `movementAnalytics.headline` | Selected month totals: `active`, `newJoin`, `rejoin`, `reinstate`, `resigned`, `cancelled` |
-| `movementAnalytics.byCategory` | Stacked breakdown by membership category |
-| `movementAnalytics.byBranch` | By branch |
-| `movementAnalytics.byGrade` | By grade |
-| `movementAnalytics.bySection` | By section |
-| `movementAnalytics.trend12Months` | Last 12 months ending at selected month (same six metrics) |
-| `asOfDate`, `periodYear`, `periodMonth` | Selected period |
-| `hasPriorMonthSnapshot`, `hasPriorYearSnapshot` | KPI chip hints |
+| Block                                           | Content                                                                                                                                                     |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kpis`                                          | Headline compare objects (`totalActiveMembers`, `newJoiners`, `leavers`, `netGrowth`, segment counts, `ytdActive`, `ytdJoiners`, `thisMonthVsLastMonth`, …) |
+| `distributions`                                 | Active count by category, grade, section, branch, region (middle-row charts)                                                                                |
+| `movementAnalytics`                             | **Membership Analytics** section                                                                                                                            |
+| `movementAnalytics.headline`                    | Selected month totals: `active`, `newJoin`, `rejoin`, `reinstate`, `resigned`, `cancelled`                                                                  |
+| `movementAnalytics.byCategory`                  | Stacked breakdown by membership category                                                                                                                    |
+| `movementAnalytics.byBranch`                    | By branch                                                                                                                                                   |
+| `movementAnalytics.byGrade`                     | By grade                                                                                                                                                    |
+| `movementAnalytics.bySection`                   | By section                                                                                                                                                  |
+| `movementAnalytics.trend12Months`               | Last 12 months ending at selected month (same six metrics)                                                                                                  |
+| `asOfDate`, `periodYear`, `periodMonth`         | Selected period                                                                                                                                             |
+| `hasPriorMonthSnapshot`, `hasPriorYearSnapshot` | KPI chip hints                                                                                                                                              |
 
 Movement definitions (from month-end `membership_period_snapshot`):
 
-- **active** — `membership_status = 'Active'` at snapshot date  
-- **newJoin** — `membership_movement = 'NewJoin'` with `start_date` in month  
-- **rejoin** — `Rejoin` in month  
-- **reinstate** — `Reinstate` in month  
-- **resigned** — `resigned_at` in month range  
-- **cancelled** — `cancelled_at` in month range  
+- **active** — `membership_status = 'Active'` at snapshot date
+- **newJoin** — `membership_movement = 'NewJoin'` with `start_date` in month
+- **rejoin** — `Rejoin` in month
+- **reinstate** — `Reinstate` in month
+- **resigned** — `resigned_at` in month range
+- **cancelled** — `cancelled_at` in month range
 
 When toolbar dimension filters are set, movement queries scan snapshots. Otherwise aggregates come from `membership_dimension_monthly` (faster).
 
