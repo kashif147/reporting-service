@@ -9,6 +9,8 @@
 
 **502 from gateway:** OpenResty cannot reach `reporting-service:4005` — container down or not on `gateway_app-net`. On the VM: `docker ps`, `docker logs reporting-service`, then `docker compose build --no-cache reporting-service && docker compose up -d reporting-service`.
 
+**CORS duplicate `Access-Control-Allow-Origin`:** Set CORS only once on the gateway (server/https block). Do not repeat `add_header Access-Control-*` inside `/reporting-service/api/` location. Set `GATEWAY_HANDLES_CORS=true` on reporting-service and use `proxy_hide_header Access-Control-*` on that location. Include `X-Tenant-Id` in `Access-Control-Allow-Headers`.
+
 ### Frontend routes
 
 | Screen | URL |
@@ -99,6 +101,25 @@ npm run migrate
 
 # Requires RABBIT_URL for live ingestion
 ```
+
+### Seed dashboard demo data (regions + categories)
+
+Populates `membership_listing` with `seed-dashboard-*` rows (weighted regions/categories), then rebuilds `membership_period_snapshot` and monthly aggregates for the current/previous month and YTD comparison dates.
+
+```bash
+cd backend/reporting-service
+
+# Local (set tenant to match X-Tenant-Id / DEFAULT_TENANT_ID in your env)
+TENANT_ID=your-tenant-id npm run seed:dashboard
+
+# Replace existing seed rows first
+TENANT_ID=your-tenant-id node scripts/seedMembershipDashboard.js --clear --count=850
+
+# Docker on VM / staging
+docker compose exec reporting-service node scripts/seedMembershipDashboard.js --clear
+```
+
+Use the same `TENANT_ID` / `DEFAULT_TENANT_ID` as the frontend sends on dashboard API calls. Remove demo data with `--clear` (deletes only `subscription_id` like `seed-dashboard-%`).
 
 ## Backfill
 

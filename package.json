@@ -8,6 +8,7 @@
     "dev": "nodemon bin/reporting-service.js",
     "migrate": "node db/runMigrations.js",
     "snapshot": "node scripts/buildMonthlySnapshots.js",
+    "seed:dashboard": "node scripts/seedMembershipDashboard.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

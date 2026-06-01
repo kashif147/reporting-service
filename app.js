@@ -45,26 +45,34 @@ app.use(
   })
 );
 
-// CORS configuration
-const corsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, Postman, etc.)
-    if (!origin) {
-      return callback(null, true);
-    }
-    
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || [];
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-  credentials: true,
-  optionsSuccessStatus: 200,
-};
+// CORS — skip when the API gateway sets Access-Control-* (avoids duplicate headers)
+const gatewayHandlesCors =
+  process.env.GATEWAY_HANDLES_CORS === "true" ||
+  process.env.GATEWAY_HANDLES_CORS === "1";
 
-app.use(cors(corsOptions));
+if (!gatewayHandlesCors) {
+  const corsOptions = {
+    origin: (origin, callback) => {
+      if (!origin) {
+        return callback(null, true);
+      }
+      const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    optionsSuccessStatus: 200,
+  };
+  app.use(cors(corsOptions));
+} else {
+  console.log("✅ CORS handled by API gateway (GATEWAY_HANDLES_CORS)");
+}
 
 // Rate limiting
 const limiter = rateLimit({
