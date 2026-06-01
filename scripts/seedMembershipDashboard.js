@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 /**
- * Seed membership_listing with demo regions/categories and rebuild period snapshots.
+ * Seed membership_listing using user-service lookup/product data, then rebuild snapshots.
  *
  * Usage:
- *   TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js
- *   TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js --count=850 --clear
+ *   MONGO_URI=<user-service-db> TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js
+ *   TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js --clear --count=850
  *
- * Docker (from reporting-service directory):
- *   docker compose exec reporting-service node scripts/seedMembershipDashboard.js
+ * Docker:
+ *   docker compose exec -e MONGO_URI="$MONGO_URI" reporting-service node scripts/seedMembershipDashboard.js --clear
  */
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.staging") });
 require("dotenv").config({
   path: path.join(__dirname, "..", "..", "..", "config", ".env.common"),
+});
+require("dotenv").config({
+  path: path.join(__dirname, "..", "..", "user-service", ".env.staging"),
 });
 
 const { pool } = require("../db/postgres");
@@ -26,47 +29,14 @@ const {
   yearToDateEnd,
   lastYearToDateEnd,
 } = require("../lib/reportingPeriods");
+const {
+  loadSeedLookups,
+  weightedPick,
+  pickLocation,
+  disconnectMongo,
+} = require("./lib/loadSeedLookups");
 
 const SEED_PREFIX = "seed-dashboard-";
-
-const CATEGORIES = [
-  { name: "General All Grades", weight: 72 },
-  { name: "Associate", weight: 12 },
-  { name: "Undergraduate Student", weight: 6 },
-  { name: "Postgraduate Student", weight: 2 },
-  { name: "Honorary Member", weight: 3 },
-  { name: "Retired Member", weight: 5 },
-];
-
-const REGIONS = [
-  { name: "Dublin", weight: 35, branches: ["Dublin North", "Dublin South", "Dublin Central"] },
-  { name: "Cork", weight: 18, branches: ["Cork City", "Cork County"] },
-  { name: "Galway", weight: 12, branches: ["Galway West", "Galway East"] },
-  { name: "Limerick", weight: 10, branches: ["Limerick City"] },
-  { name: "Waterford", weight: 8, branches: ["Waterford"] },
-  { name: "Donegal", weight: 7, branches: ["Letterkenny", "Donegal Town"] },
-  { name: "Kilkenny", weight: 5, branches: ["Kilkenny"] },
-  { name: "Midlands", weight: 5, branches: ["Athlone", "Tullamore"] },
-];
-
-const GRADES = [
-  "Staff Nurse",
-  "Clinical Nurse Manager",
-  "Registered Nurse",
-  "Healthcare Assistant",
-  "Midwife",
-  "Public Health Nurse",
-];
-
-const SECTIONS = ["Acute", "Community", "Mental Health", "Older Persons", "Paediatrics"];
-const WORK_LOCATIONS = [
-  "Beaumont Hospital",
-  "Cork University Hospital",
-  "Galway University Hospital",
-  "University Hospital Limerick",
-  "Waterford University Hospital",
-  "Community Care",
-];
 
 function parseArgs() {
   const opts = { clear: false, count: 850 };
@@ -80,21 +50,6 @@ function parseArgs() {
   return opts;
 }
 
-function weightedPick(items) {
-  const total = items.reduce((s, i) => s + i.weight, 0);
-  let r = Math.random() * total;
-  for (const item of items) {
-    r -= item.weight;
-    if (r <= 0) return item;
-  }
-  return items[items.length - 1];
-}
-
-function pickBranch(region) {
-  const list = region.branches || [region.name];
-  return list[Math.floor(Math.random() * list.length)];
-}
-
 function monthBoundsUtc() {
   const now = new Date();
   const y = now.getUTCFullYear();
@@ -104,32 +59,30 @@ function monthBoundsUtc() {
   const day = Math.min(now.getUTCDate(), end.getUTCDate());
   const mid = new Date(Date.UTC(y, m, Math.max(1, Math.floor(day / 2))));
   return {
-    monthStart: start.toISOString().slice(0, 10),
-    monthEnd: end.toISOString().slice(0, 10),
     sampleDay: mid.toISOString().slice(0, 10),
     year: y,
-    month: m + 1,
   };
 }
 
-function buildMembers(tenantId, totalCount) {
-  const { monthStart, monthEnd, sampleDay, year } = monthBoundsUtc();
+function buildMembers(tenantId, totalCount, lookups) {
+  const { sampleDay, year } = monthBoundsUtc();
   const joinerCount = Math.max(15, Math.round(totalCount * 0.04));
   const leaverCount = Math.max(10, Math.round(totalCount * 0.025));
   const activeCount = totalCount - joinerCount - leaverCount;
   const rows = [];
   let n = 0;
 
-  const push = (overrides) => {
+  const push = (overrides = {}) => {
     const i = n++;
-    const category = overrides.membership_category || weightedPick(CATEGORIES).name;
-    const region = overrides.region
-      ? REGIONS.find((r) => r.name === overrides.region) || weightedPick(REGIONS)
-      : weightedPick(REGIONS);
-    const regionName = typeof region === "string" ? region : region.name;
-    const branch =
-      overrides.branch ||
-      pickBranch(typeof region === "string" ? weightedPick(REGIONS) : region);
+    const category =
+      overrides.membership_category || weightedPick(lookups.categories).name;
+    const loc = overrides.region
+      ? {
+          region: overrides.region,
+          branch: overrides.branch,
+          work_location: overrides.work_location,
+        }
+      : pickLocation(lookups.locations);
 
     rows.push({
       tenant_id: tenantId,
@@ -144,13 +97,13 @@ function buildMembers(tenantId, totalCount) {
       cancelled_at: overrides.cancelled_at ?? null,
       resigned_at: overrides.resigned_at ?? null,
       membership_category: category,
-      grade: overrides.grade || GRADES[i % GRADES.length],
-      work_location:
-        overrides.work_location || WORK_LOCATIONS[i % WORK_LOCATIONS.length],
-      branch,
-      region: regionName,
-      section: overrides.section || SECTIONS[i % SECTIONS.length],
-      payment_type: "Salary Deduction",
+      grade: overrides.grade || weightedPick(lookups.grades).name,
+      work_location: overrides.work_location || loc.work_location,
+      branch: overrides.branch || loc.branch,
+      region: overrides.region || loc.region,
+      section: overrides.section || weightedPick(lookups.sections).name,
+      payment_type:
+        overrides.payment_type || weightedPick(lookups.paymentTypes).name,
       payment_frequency: "Monthly",
       subscription_year: year,
       member_segment: memberSegmentFromCategory(category),
@@ -158,12 +111,9 @@ function buildMembers(tenantId, totalCount) {
     });
   };
 
-  for (let i = 0; i < activeCount; i += 1) push({});
+  for (let i = 0; i < activeCount; i += 1) push();
   for (let i = 0; i < joinerCount; i += 1) {
-    push({
-      membership_movement: "NewJoin",
-      start_date: sampleDay,
-    });
+    push({ membership_movement: "NewJoin", start_date: sampleDay });
   }
   for (let i = 0; i < leaverCount; i += 1) {
     if (i % 2 === 0) {
@@ -183,7 +133,7 @@ function buildMembers(tenantId, totalCount) {
     }
   }
 
-  return { rows, monthStart, monthEnd };
+  return { rows };
 }
 
 async function clearSeedData(tenantId) {
@@ -291,12 +241,16 @@ async function main() {
 
   console.log(`Seeding tenant ${tenantId} (${opts.count} members, clear=${opts.clear})`);
 
+  console.log("  loading lookup data from user-service…");
+  const lookups = await loadSeedLookups(tenantId);
+  console.log(`  source: ${lookups.source}`);
+
   if (opts.clear) {
     await clearSeedData(tenantId);
     console.log("  cleared prior seed-dashboard-* rows");
   }
 
-  const { rows } = buildMembers(tenantId, opts.count);
+  const { rows } = buildMembers(tenantId, opts.count, lookups);
   const inserted = await upsertListingRows(rows);
   console.log(`  upserted ${inserted} listing row(s)`);
 
@@ -335,4 +289,7 @@ main()
     console.error(e);
     process.exit(1);
   })
-  .finally(() => pool.end());
+  .finally(async () => {
+    await disconnectMongo().catch(() => {});
+    await pool.end();
+  });

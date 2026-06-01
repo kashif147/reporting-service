@@ -104,20 +104,33 @@ npm run migrate
 
 ### Seed dashboard demo data (regions + categories)
 
-Populates `membership_listing` with `seed-dashboard-*` rows (weighted regions/categories), then rebuilds `membership_period_snapshot` and monthly aggregates for the current/previous month and YTD comparison dates.
+Populates `membership_listing` with `seed-dashboard-*` rows using **live lookup data** from user-service MongoDB (membership category products, regions/branches/work locations, grades, primary sections, payment types), then rebuilds snapshots and monthly aggregates.
+
+Requires `MONGO_URI` (user-service database). The seed script also loads `backend/user-service/.env.staging` when present.
 
 ```bash
 cd backend/reporting-service
 
-# Local (set tenant to match X-Tenant-Id / DEFAULT_TENANT_ID in your env)
+# Local
 TENANT_ID=your-tenant-id npm run seed:dashboard
 
-# Replace existing seed rows first
+# Replace existing seed rows
 TENANT_ID=your-tenant-id node scripts/seedMembershipDashboard.js --clear --count=850
 
-# Docker on VM / staging
-docker compose exec reporting-service node scripts/seedMembershipDashboard.js --clear
+# Docker on VM (pass Mongo URI from user-service)
+docker compose exec \
+  -e MONGO_URI='mongodb+srv://...' \
+  -e TENANT_ID=68cbf7806080b4621d469d34 \
+  reporting-service node scripts/seedMembershipDashboard.js --clear
 ```
+
+Optional env:
+
+| Variable | Purpose |
+|----------|---------|
+| `MEMBERSHIP_CATEGORY_PRODUCT_TYPE_ID` | Product type for categories (default `68dae613c5b15073d66b891f`) |
+| `SEED_LOOKUPS_FIXTURE` | Path to JSON fallback if Mongo is unreachable |
+| `SEED_LOOKUPS_FIXTURE_ONLY=true` | Skip Mongo; use fixture only |
 
 Use the same `TENANT_ID` / `DEFAULT_TENANT_ID` as the frontend sends on dashboard API calls. Remove demo data with `--clear` (deletes only `subscription_id` like `seed-dashboard-%`).
 
