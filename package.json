@@ -9,6 +9,7 @@
     "migrate": "node db/runMigrations.js",
     "snapshot": "node scripts/buildMonthlySnapshots.js",
     "seed:dashboard": "node scripts/seedMembershipDashboard.js",
+    "verify:dashboard": "node scripts/verifyDashboardReadiness.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

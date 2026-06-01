@@ -1,123 +1,150 @@
-# Membership analytics (comparison, live stats, dashboard)
+# Membership analytics (dashboard, comparison, movement)
 
-## Data model
+## Data model (`reporting_db` / schema `reports`)
 
 | Table | Purpose |
 |-------|---------|
-| `membership_period_snapshot` | Member-level **as-of** copy for a calendar date (month-end, year-end, or today) |
-| `membership_kpi_monthly` | Monthly headline KPIs (active, joiners, leavers, paid/student/honorary) |
-| `membership_dimension_monthly` | Monthly counts by category, grade, branch, region, section |
+| `membership_listing` | Current denormalised member rows (source for snapshots) |
+| `membership_period_snapshot` | Member-level **as-of** copy for a calendar date |
+| `membership_kpi_monthly` | Monthly headline KPIs + movement split (`new_join_in_month`, `rejoin_in_month`, `reinstate_in_month`, `cancelled_in_month`, `resigned_in_month`) |
+| `membership_dimension_monthly` | Same metrics by dimension (`membershipCategory`, `grade`, `branch`, `region`, `section`, `workLocation`) and `member_segment` |
 
-Snapshots are built from **`membership_listing`** (current state). Historical comparisons only work for dates you have snapshotted.
-
-## Student / honorary filters
-
-`member_segment` on each snapshot row:
-
-- `student` — category name contains `student`
-- `honorary` — category contains `honorary`
-- `paid` — everything else
-
-API flags: `includeStudents`, `includeHonorary` (default both **false** = paid only).
-
-## 1. Comparison report
-
-`POST /reports/membership/compare`
-
-**Year-end 2025 vs May 2026:**
-
-```json
-{
-  "periodA": { "type": "year_end", "year": 2025 },
-  "periodB": { "type": "month_end", "year": 2026, "month": 5 },
-  "includeStudents": false,
-  "includeHonorary": false,
-  "dimensions": ["membershipCategory", "grade", "branch", "region"]
-}
-```
-
-**April 2026 vs May 2026:**
-
-```json
-{
-  "periodA": { "type": "month_end", "year": 2026, "month": 4 },
-  "periodB": { "type": "month_end", "year": 2026, "month": 5 }
-}
-```
-
-**May 2025 vs May 2026:**
-
-```json
-{ "preset": "same_month_last_year" }
-```
-
-**Prior year-end vs current month-end:**
-
-```json
-{ "preset": "year_end_vs_current" }
-```
-
-**Executive dashboard (both at once):**
-
-```json
-{ "dual": true, "includeStudents": false, "includeHonorary": false }
-```
-
-Or explicit periods as above with `year: 2025, month: 5` and `year: 2026, month: 5`.
-
-Response includes `periodA`, `periodB`, `kpiChange`, and `breakdown` per dimension (count A, count B, change).
-
-## 2. Live stats (monthly)
-
-`POST /reports/membership/live-stats`
-
-```json
-{
-  "years": [2025, 2026],
-  "months": [4, 5],
-  "dimensions": ["membershipCategory", "grade", "branch", "region", "section"],
-  "includeStudents": false,
-  "includeHonorary": false,
-  "recompute": true
-}
-```
-
-`recompute: true` rebuilds snapshots + aggregates for each year/month before returning rows.
-
-Each row: `periodYear`, `periodMonth`, `dimension`, `dimensionValue`, `activeCount`, `cancelledInMonth`, `resignedInMonth`, `joinersInMonth`, `leaversInMonth`.
-
-## 3. Dashboard
-
-`POST /dashboard/` (unified dashboard body)
-
-```json
-{
-  "includeStudents": true,
-  "includeHonorary": false
-}
-```
-
-Returns:
-
-- KPIs with **current vs prior** (`totalActiveMembers`, `paidMembers`, `studentMembers`, `honoraryMembers`, `ytdActive`, `thisMonthVsLastMonth`)
-- MTD **joiners / leavers / net** from live `membership_listing`
-- **Distributions** (active count) by category, grade, section, workLocation, branch, region for current month-end snapshot
-
-## Building snapshots
+Run migrations before deploy:
 
 ```bash
-# One month
-TENANT_ID=your-tenant npm run snapshot -- 2025 12
+cd backend/reporting-service
+npm run migrate
+```
 
-# Or API (requires reporting:write)
+Migration `004_movement_breakdown_columns.sql` adds movement columns required for **Membership Analytics** stacked charts.
+
+## Ingest
+
+Live rows come from RabbitMQ (`membership` / `profile` listeners) into `membership_listing`. Without listing data, dashboards return zeros.
+
+## Snapshots & monthly aggregates
+
+Historical months need **month-end snapshots** plus **monthly aggregates**:
+
+```bash
+TENANT_ID=your-tenant npm run snapshot -- 2025 12
+# or
 POST /reports/membership/snapshots/build
 { "period": { "type": "month_end", "year": 2025, "month": 12 } }
 ```
 
-Run month-end snapshots on a schedule (e.g. 1st of month for previous month) for accurate comparisons.
+`POST /dashboard/membership` automatically:
+
+1. Ensures snapshot + `membership_kpi_monthly` / `membership_dimension_monthly` for the **selected month**
+2. Ensures the **last 12 months** used by the analytics trend chart
+3. Ensures prior month / YTD snapshot dates for KPI chips
+
+Verify / backfill:
+
+```bash
+TENANT_ID=your-tenant npm run verify:dashboard
+TENANT_ID=your-tenant node scripts/verifyDashboardReadiness.js --backfill-months=12
+```
+
+## Student / honorary filters
+
+`member_segment` on snapshots: `paid` | `student` | `honorary`.
+
+API flags: `includeStudents`, `includeHonorary` (default **false** = paid only).
+
+## Executive dashboard API
+
+`POST /dashboard/membership`  
+Permission: `reporting:read`  
+Header: `x-tenant-id`, `Authorization`
+
+### Request body (`filters` object or top-level)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `year` | number | Selected calendar year (e.g. 2026) |
+| `month` | number | Selected month 1–12 |
+| `includeStudents` | boolean | Include student segment |
+| `includeHonorary` | boolean | Include honorary segment |
+| `membershipCategories` | string[] | Filter (toolbar label: Membership Category) |
+| `grades` | string[] | Filter |
+| `sections` | string[] | Filter (Section Primary) |
+| `regions` | string[] | Filter |
+| `branches` | string[] | Filter |
+
+Toolbar labels are also accepted: `"Membership Category"`, `Grade`, etc.
+
+Example:
+
+```json
+{
+  "filters": {
+    "year": 2026,
+    "month": 5,
+    "includeStudents": false,
+    "includeHonorary": false,
+    "regions": ["Dublin"]
+  }
+}
+```
+
+### Response (`data` after unwrap)
+
+| Block | Content |
+|-------|---------|
+| `kpis` | Headline compare objects (`totalActiveMembers`, `newJoiners`, `leavers`, `netGrowth`, segment counts, `ytdActive`, `ytdJoiners`, `thisMonthVsLastMonth`, …) |
+| `distributions` | Active count by category, grade, section, branch, region (middle-row charts) |
+| `movementAnalytics` | **Membership Analytics** section |
+| `movementAnalytics.headline` | Selected month totals: `active`, `newJoin`, `rejoin`, `reinstate`, `resigned`, `cancelled` |
+| `movementAnalytics.byCategory` | Stacked breakdown by membership category |
+| `movementAnalytics.byBranch` | By branch |
+| `movementAnalytics.byGrade` | By grade |
+| `movementAnalytics.bySection` | By section |
+| `movementAnalytics.trend12Months` | Last 12 months ending at selected month (same six metrics) |
+| `asOfDate`, `periodYear`, `periodMonth` | Selected period |
+| `hasPriorMonthSnapshot`, `hasPriorYearSnapshot` | KPI chip hints |
+
+Movement definitions (from month-end `membership_period_snapshot`):
+
+- **active** — `membership_status = 'Active'` at snapshot date  
+- **newJoin** — `membership_movement = 'NewJoin'` with `start_date` in month  
+- **rejoin** — `Rejoin` in month  
+- **reinstate** — `Reinstate` in month  
+- **resigned** — `resigned_at` in month range  
+- **cancelled** — `cancelled_at` in month range  
+
+When toolbar dimension filters are set, movement queries scan snapshots. Otherwise aggregates come from `membership_dimension_monthly` (faster).
+
+## Comparison report
+
+`POST /reports/membership/compare`
+
+Same filter fields as dashboard (`referenceYear` / `referenceMonth` for period anchor).
+
+```json
+{
+  "dual": true,
+  "referenceYear": 2026,
+  "referenceMonth": 5,
+  "includeStudents": false,
+  "includeHonorary": false,
+  "membershipCategories": ["General All Grades"],
+  "dimensions": ["membershipCategory", "grade", "region", "branch", "section"]
+}
+```
+
+Presets: `same_month_last_year`, `year_end_vs_current`, `last_month_vs_current`.
+
+## Live stats
+
+`POST /reports/membership/live-stats` — monthly rows from `membership_dimension_monthly` (`recompute: true` rebuilds snapshots + aggregates).
+
+## Scheduled jobs
+
+`jobs/scheduledSnapshots.js` — configure cron to snapshot prior month-end after listing is stable.
 
 ## Limitations
 
-- Comparisons are **as-of snapshot** counts, not full event replay.
-- Without snapshots for a date, the API **auto-builds** from current listing (accurate only if listing reflects that date — use scheduled snapshots for history).
-- Joiners/leavers in a month use movement dates + cancel/resign timestamps on the **month-end snapshot** row.
+- Auto-built snapshots from **current** listing only approximate history; use scheduled month-end builds for accurate trends.
+- First dashboard load after deploy may take longer while 12 months of metrics are ensured.
+- Re-run `npm run migrate` and `--backfill-months=12` after upgrading to populate movement columns on existing KPI rows.

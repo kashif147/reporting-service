@@ -4,7 +4,7 @@ const {
   appendDimensionFilters,
   hasDimensionFilters,
 } = require("../lib/membershipDimensionFilters");
-const { monthRange } = require("../lib/reportingPeriods");
+const { monthRange, resolvePeriod } = require("../lib/reportingPeriods");
 const { hasPeriodSnapshot } = require("./membershipSnapshot.repository");
 
 const EMPTY_SNAPSHOT_KPI = {
@@ -47,10 +47,11 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
 
   for (const [dimension, col] of Object.entries(DIMENSION_COLUMNS)) {
     await pool.query(
-      `INSERT INTO membership_dimension_monthly (
+      `      INSERT INTO membership_dimension_monthly (
         tenant_id, period_year, period_month, dimension, dimension_value,
         member_segment, active_count, cancelled_in_month, resigned_in_month,
-        joiners_in_month, leavers_in_month
+        joiners_in_month, leavers_in_month,
+        new_join_in_month, rejoin_in_month, reinstate_in_month
       )
       SELECT
         $1, $2, $3, $4,
@@ -70,6 +71,18 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
         COUNT(*) FILTER (
           WHERE (cancelled_at >= $5::timestamptz AND cancelled_at < $6::timestamptz)
              OR (resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz)
+        ),
+        COUNT(*) FILTER (
+          WHERE membership_movement = 'NewJoin'
+            AND start_date >= $7::date AND start_date <= $8::date
+        ),
+        COUNT(*) FILTER (
+          WHERE membership_movement = 'Rejoin'
+            AND start_date >= $7::date AND start_date <= $8::date
+        ),
+        COUNT(*) FILTER (
+          WHERE membership_movement = 'Reinstate'
+            AND start_date >= $7::date AND start_date <= $8::date
         )
       FROM membership_period_snapshot
       WHERE tenant_id = $1 AND snapshot_date = $8::date
@@ -97,7 +110,19 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
       )::int AS cancelled_in_month,
       COUNT(*) FILTER (
         WHERE resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz
-      )::int AS resigned_in_month
+      )::int AS resigned_in_month,
+      COUNT(*) FILTER (
+        WHERE membership_movement = 'NewJoin'
+          AND start_date >= $3::date AND start_date <= $4::date
+      )::int AS new_join_in_month,
+      COUNT(*) FILTER (
+        WHERE membership_movement = 'Rejoin'
+          AND start_date >= $3::date AND start_date <= $4::date
+      )::int AS rejoin_in_month,
+      COUNT(*) FILTER (
+        WHERE membership_movement = 'Reinstate'
+          AND start_date >= $3::date AND start_date <= $4::date
+      )::int AS reinstate_in_month
     FROM membership_period_snapshot
     WHERE tenant_id = $1 AND snapshot_date = $2::date`,
     [tenantId, asOfDate, monthStart, asOfDate, start, end]
@@ -112,8 +137,10 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
       tenant_id, period_year, period_month,
       active_total, joiners, leavers, net_growth,
       paid_active, student_active, honorary_active,
-      cancelled_in_month, resigned_in_month, computed_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+      cancelled_in_month, resigned_in_month,
+      new_join_in_month, rejoin_in_month, reinstate_in_month,
+      computed_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
     ON CONFLICT (tenant_id, period_year, period_month) DO UPDATE SET
       active_total = EXCLUDED.active_total,
       joiners = EXCLUDED.joiners,
@@ -124,6 +151,9 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
       honorary_active = EXCLUDED.honorary_active,
       cancelled_in_month = EXCLUDED.cancelled_in_month,
       resigned_in_month = EXCLUDED.resigned_in_month,
+      new_join_in_month = EXCLUDED.new_join_in_month,
+      rejoin_in_month = EXCLUDED.rejoin_in_month,
+      reinstate_in_month = EXCLUDED.reinstate_in_month,
       computed_at = NOW()`,
     [
       tenantId,
@@ -138,6 +168,9 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
       k.honorary_active || 0,
       k.cancelled_in_month || 0,
       k.resigned_in_month || 0,
+      k.new_join_in_month || 0,
+      k.rejoin_in_month || 0,
+      k.reinstate_in_month || 0,
     ]
   );
 }
@@ -234,6 +267,123 @@ async function getMonthMovementKpiFromSnapshot(
     leavers,
     net_growth: joiners - leavers,
   };
+}
+
+async function sumYtdMovementFromMonthlyAggregates(
+  tenantId,
+  year,
+  throughMonth,
+  segmentOpts
+) {
+  const where = [
+    "tenant_id = $1",
+    "period_year = $2",
+    "period_month <= $3",
+    "dimension = 'membershipCategory'",
+  ];
+  const params = [tenantId, year, throughMonth];
+  appendSegmentFilter(where, params, segmentOpts);
+  const { rows } = await pool.query(
+    `SELECT
+      COALESCE(SUM(new_join_in_month), 0)::int AS new_join,
+      COALESCE(SUM(rejoin_in_month), 0)::int AS rejoin,
+      COALESCE(SUM(reinstate_in_month), 0)::int AS reinstate,
+      COALESCE(SUM(cancelled_in_month), 0)::int AS cancelled,
+      COALESCE(SUM(resigned_in_month), 0)::int AS resigned,
+      COALESCE(SUM(leavers_in_month), 0)::int AS leavers
+    FROM membership_dimension_monthly
+    WHERE ${where.join(" AND ")}`,
+    params
+  );
+  const r = rows[0] || {};
+  const joiners =
+    (r.new_join || 0) + (r.rejoin || 0) + (r.reinstate || 0);
+  const leavers = r.leavers || (r.cancelled || 0) + (r.resigned || 0);
+  return {
+    joiners,
+    leavers,
+    net_growth: joiners - leavers,
+  };
+}
+
+async function sumYtdMovementFromSnapshots(
+  tenantId,
+  year,
+  throughMonth,
+  segmentOpts,
+  dimensionOpts = {}
+) {
+  let joiners = 0;
+  let leavers = 0;
+  for (let month = 1; month <= throughMonth; month += 1) {
+    const resolved = resolvePeriod({ type: "month_end", year, month });
+    const mov = await getMonthMovementKpiFromSnapshot(
+      tenantId,
+      resolved.asOfDate,
+      year,
+      month,
+      segmentOpts,
+      dimensionOpts
+    );
+    joiners += mov.joiners || 0;
+    leavers += mov.leavers || 0;
+  }
+  return {
+    joiners,
+    leavers,
+    net_growth: joiners - leavers,
+  };
+}
+
+async function sumYtdMovement(
+  tenantId,
+  year,
+  throughMonth,
+  segmentOpts,
+  dimensionOpts = {}
+) {
+  if (hasDimensionFilters(dimensionOpts)) {
+    return sumYtdMovementFromSnapshots(
+      tenantId,
+      year,
+      throughMonth,
+      segmentOpts,
+      dimensionOpts
+    );
+  }
+  return sumYtdMovementFromMonthlyAggregates(
+    tenantId,
+    year,
+    throughMonth,
+    segmentOpts
+  );
+}
+
+async function hasMonthlyKpiRow(tenantId, year, month) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM membership_kpi_monthly
+     WHERE tenant_id = $1 AND period_year = $2 AND period_month = $3`,
+    [tenantId, year, month]
+  );
+  return rows.length > 0;
+}
+
+/** True when KPI row is missing or movement split columns were not backfilled. */
+async function monthlyMetricsNeedRecompute(tenantId, year, month) {
+  const { rows } = await pool.query(
+    `SELECT joiners, new_join_in_month, rejoin_in_month, reinstate_in_month
+     FROM membership_kpi_monthly
+     WHERE tenant_id = $1 AND period_year = $2 AND period_month = $3`,
+    [tenantId, year, month]
+  );
+  if (!rows.length) return true;
+  const r = rows[0];
+  const split =
+    (Number(r.new_join_in_month) || 0) +
+    (Number(r.rejoin_in_month) || 0) +
+    (Number(r.reinstate_in_month) || 0);
+  const joiners = Number(r.joiners) || 0;
+  return joiners > 0 && split === 0;
 }
 
 async function getMonthlyHeadlineKpi(tenantId, year, month) {
@@ -434,6 +584,9 @@ module.exports = {
   getKpiFromSnapshot,
   getSnapshotKpiIfExists,
   getMonthlyHeadlineKpi,
+  sumYtdMovement,
+  hasMonthlyKpiRow,
+  monthlyMetricsNeedRecompute,
   getComparisonPeriodKpis,
   getMonthMovementKpiFromSnapshot,
   getDimensionBreakdownFromSnapshot,
