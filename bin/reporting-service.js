@@ -1,76 +1,55 @@
-const express = require("express");
-const cors = require("cors");
 const dotenv = require("dotenv");
 dotenv.config({ path: ".env.staging" });
 
+const app = require("../app");
 const { testConnection } = require("../db/postgres");
-
-const app = express();
-
-// app.use(cors());
-app.use(express.json());
-
-// Initialize RabbitMQ event system - Now using middleware
+const { runMigrations } = require("../db/runMigrations");
 const {
   initEventSystem,
   setupConsumers,
   shutdownEventSystem,
 } = require("../rabbitMQ");
 
-if (process.env.RABBIT_URL) {
-  console.log("🐰 RabbitMQ URL configured, initializing with middleware...");
-  initEventSystem()
-    .then(() => {
-      console.log("✅ Initializing RabbitMQ consumers...");
-      return setupConsumers();
-    })
-    .then(() => {
-      console.log("✅ RabbitMQ fully initialized with middleware");
-    })
-    .catch((error) => {
-      console.error("❌ Failed to initialize RabbitMQ:", error.message);
-      console.error("⚠️ App will continue without RabbitMQ (degraded mode)");
-    });
-
-  // Graceful shutdown
-  process.on("SIGTERM", async () => {
-    console.log("⏹️  SIGTERM received, shutting down gracefully...");
-    await shutdownEventSystem();
-    process.exit(0);
-  });
-
-  process.on("SIGINT", async () => {
-    console.log("⏹️  SIGINT received, shutting down gracefully...");
-    await shutdownEventSystem();
-    process.exit(0);
-  });
-} else {
-  console.warn(
-    "⚠️ RABBIT_URL not configured, skipping RabbitMQ initialization"
-  );
-}
-
-// Default health-check route
-app.get("/", (req, res) => {
-  res.send("Reporting Service Backend is running");
-});
-
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.json({
-    status: "healthy",
-    service: "reporting-service",
-    timestamp: new Date().toISOString(),
-    port: process.env.PORT || 4005,
-    environment: process.env.NODE_ENV || "development",
-  });
-});
-
-// Test DB connection on startup
-testConnection();
-
 const PORT = process.env.PORT || 4005;
 
-app.listen(PORT, () => {
-  console.log(`Reporting service running on port ${PORT}`);
+async function start() {
+  if (process.env.RUN_REPORTING_MIGRATIONS === "true") {
+    await runMigrations();
+  }
+
+  testConnection();
+
+  if (process.env.RABBIT_URL) {
+    try {
+      await initEventSystem();
+      await setupConsumers();
+      console.log("✅ Reporting-service RabbitMQ consumers ready");
+    } catch (error) {
+      console.error("❌ RabbitMQ init failed:", error.message);
+      console.warn("⚠️ Continuing without RabbitMQ (read-only / degraded)");
+    }
+
+    const shutdown = async () => {
+      await shutdownEventSystem();
+      process.exit(0);
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
+  } else {
+    console.warn("⚠️ RABBIT_URL not set — event ingestion disabled");
+  }
+
+  if (process.env.ENABLE_REPORTING_CRON !== "false") {
+    const { startScheduledSnapshots } = require("../jobs/scheduledSnapshots");
+    startScheduledSnapshots();
+  }
+
+  app.listen(PORT, () => {
+    console.log(`Reporting service running on port ${PORT}`);
+  });
+}
+
+start().catch((err) => {
+  console.error(err);
+  process.exit(1);
 });

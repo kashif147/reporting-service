@@ -1,0 +1,283 @@
+const { pool } = require("../db/postgres");
+const { segmentFilterSql } = require("../lib/memberSegment");
+const { monthRange } = require("../lib/reportingPeriods");
+
+const DIMENSION_COLUMNS = {
+  membershipCategory: "membership_category",
+  grade: "grade",
+  branch: "branch",
+  region: "region",
+  section: "section",
+  workLocation: "work_location",
+};
+
+async function ensureSnapshot(tenantId, asOfDate, buildFn) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM membership_period_snapshot
+     WHERE tenant_id = $1 AND snapshot_date = $2::date LIMIT 1`,
+    [tenantId, asOfDate]
+  );
+  if (!rows.length && buildFn) {
+    await buildFn(tenantId, asOfDate);
+  }
+}
+
+async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
+  const { start, end } = monthRange(year, month);
+  const asOfDate = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+  const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+
+  await pool.query(
+    `DELETE FROM membership_dimension_monthly
+     WHERE tenant_id = $1 AND period_year = $2 AND period_month = $3`,
+    [tenantId, year, month]
+  );
+
+  for (const [dimension, col] of Object.entries(DIMENSION_COLUMNS)) {
+    await pool.query(
+      `INSERT INTO membership_dimension_monthly (
+        tenant_id, period_year, period_month, dimension, dimension_value,
+        member_segment, active_count, cancelled_in_month, resigned_in_month,
+        joiners_in_month, leavers_in_month
+      )
+      SELECT
+        $1, $2, $3, $4,
+        COALESCE(NULLIF(TRIM(${col}::text), ''), '(blank)'),
+        member_segment,
+        COUNT(*) FILTER (WHERE membership_status = 'Active'),
+        COUNT(*) FILTER (
+          WHERE cancelled_at >= $5::timestamptz AND cancelled_at < $6::timestamptz
+        ),
+        COUNT(*) FILTER (
+          WHERE resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz
+        ),
+        COUNT(*) FILTER (
+          WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+            AND start_date >= $7::date AND start_date <= $8::date
+        ),
+        COUNT(*) FILTER (
+          WHERE (cancelled_at >= $5::timestamptz AND cancelled_at < $6::timestamptz)
+             OR (resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz)
+        )
+      FROM membership_period_snapshot
+      WHERE tenant_id = $1 AND snapshot_date = $8::date
+      GROUP BY member_segment, COALESCE(NULLIF(TRIM(${col}::text), ''), '(blank)')`,
+      [tenantId, year, month, dimension, start, end, monthStart, asOfDate]
+    );
+  }
+
+  const kpiRes = await pool.query(
+    `SELECT
+      COUNT(*) FILTER (WHERE membership_status = 'Active')::int AS active_total,
+      COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'paid')::int AS paid_active,
+      COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'student')::int AS student_active,
+      COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'honorary')::int AS honorary_active,
+      COUNT(*) FILTER (
+        WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+          AND start_date >= $3::date AND start_date <= $4::date
+      )::int AS joiners,
+      COUNT(*) FILTER (
+        WHERE (cancelled_at >= $5::timestamptz AND cancelled_at < $6::timestamptz)
+           OR (resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz)
+      )::int AS leavers,
+      COUNT(*) FILTER (
+        WHERE cancelled_at >= $5::timestamptz AND cancelled_at < $6::timestamptz
+      )::int AS cancelled_in_month,
+      COUNT(*) FILTER (
+        WHERE resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz
+      )::int AS resigned_in_month
+    FROM membership_period_snapshot
+    WHERE tenant_id = $1 AND snapshot_date = $3::date`,
+    [tenantId, monthStart, asOfDate, start, end]
+  );
+
+  const k = kpiRes.rows[0] || {};
+  const joiners = k.joiners || 0;
+  const leavers = k.leavers || 0;
+
+  await pool.query(
+    `INSERT INTO membership_kpi_monthly (
+      tenant_id, period_year, period_month,
+      active_total, joiners, leavers, net_growth,
+      paid_active, student_active, honorary_active,
+      cancelled_in_month, resigned_in_month, computed_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+    ON CONFLICT (tenant_id, period_year, period_month) DO UPDATE SET
+      active_total = EXCLUDED.active_total,
+      joiners = EXCLUDED.joiners,
+      leavers = EXCLUDED.leavers,
+      net_growth = EXCLUDED.net_growth,
+      paid_active = EXCLUDED.paid_active,
+      student_active = EXCLUDED.student_active,
+      honorary_active = EXCLUDED.honorary_active,
+      cancelled_in_month = EXCLUDED.cancelled_in_month,
+      resigned_in_month = EXCLUDED.resigned_in_month,
+      computed_at = NOW()`,
+    [
+      tenantId,
+      year,
+      month,
+      k.active_total || 0,
+      joiners,
+      leavers,
+      joiners - leavers,
+      k.paid_active || 0,
+      k.student_active || 0,
+      k.honorary_active || 0,
+      k.cancelled_in_month || 0,
+      k.resigned_in_month || 0,
+    ]
+  );
+}
+
+async function getKpiForPeriod(tenantId, year, month, segmentOpts) {
+  const seg = segmentFilterSql(segmentOpts, "member_segment", 4);
+  const { rows } = await pool.query(
+    `SELECT
+      period_year AS "periodYear",
+      period_month AS "periodMonth",
+      SUM(active_total) FILTER (WHERE TRUE) AS "activeTotal",
+      SUM(joiners) AS joiners,
+      SUM(leavers) AS leavers,
+      SUM(net_growth) AS "netGrowth",
+      SUM(paid_active) AS "paidActive",
+      SUM(student_active) AS "studentActive",
+      SUM(honorary_active) AS "honoraryActive",
+      SUM(cancelled_in_month) AS "cancelledInMonth",
+      SUM(resigned_in_month) AS "resignedInMonth"
+    FROM membership_kpi_monthly k
+    WHERE k.tenant_id = $1 AND k.period_year = $2 AND k.period_month = $3`,
+    [tenantId, year, month]
+  );
+  return rows[0] || null;
+}
+
+async function getKpiFromSnapshot(tenantId, asOfDate, segmentOpts) {
+  const seg = segmentFilterSql(segmentOpts, "member_segment", 2);
+  const params = [tenantId, asOfDate, ...seg.params];
+  const { rows } = await pool.query(
+    `SELECT
+      COUNT(*) FILTER (WHERE membership_status = 'Active')::int AS "activeTotal",
+      COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'paid')::int AS "paidActive",
+      COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'student')::int AS "studentActive",
+      COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'honorary')::int AS "honoraryActive"
+    FROM membership_period_snapshot
+    WHERE tenant_id = $1 AND snapshot_date = $2::date AND ${seg.sql}`,
+    params
+  );
+  return rows[0];
+}
+
+async function getDimensionBreakdownFromSnapshot(
+  tenantId,
+  asOfDate,
+  dimension,
+  segmentOpts
+) {
+  const col = DIMENSION_COLUMNS[dimension];
+  if (!col) throw new Error(`Unknown dimension: ${dimension}`);
+  const seg = segmentFilterSql(segmentOpts, "member_segment", 3);
+  const params = [tenantId, asOfDate, ...seg.params];
+  const { rows } = await pool.query(
+    `SELECT
+      COALESCE(NULLIF(TRIM(${col}::text), ''), '(blank)') AS name,
+      COUNT(*) FILTER (WHERE membership_status = 'Active')::int AS count
+    FROM membership_period_snapshot
+    WHERE tenant_id = $1 AND snapshot_date = $2::date AND ${seg.sql}
+    GROUP BY 1
+    ORDER BY count DESC, name`,
+    params
+  );
+  return rows;
+}
+
+async function getLiveStatsMonthly(tenantId, filters) {
+  const {
+    years = [],
+    months = [],
+    dimensions = ["membershipCategory"],
+    includeStudents = false,
+    includeHonorary = false,
+  } = filters;
+
+  const seg = segmentFilterSql(
+    { includeStudents, includeHonorary },
+    "member_segment",
+    2
+  );
+  const params = [tenantId, ...seg.params];
+  const where = [`tenant_id = $1`, seg.sql];
+  let idx = params.length + 1;
+
+  if (years.length) {
+    where.push(`period_year = ANY($${idx++})`);
+    params.push(years);
+  }
+  if (months.length) {
+    where.push(`period_month = ANY($${idx++})`);
+    params.push(months);
+  }
+  if (dimensions.length) {
+    where.push(`dimension = ANY($${idx++})`);
+    params.push(dimensions);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT
+      period_year AS "periodYear",
+      period_month AS "periodMonth",
+      dimension,
+      dimension_value AS "dimensionValue",
+      member_segment AS "memberSegment",
+      active_count AS "activeCount",
+      cancelled_in_month AS "cancelledInMonth",
+      resigned_in_month AS "resignedInMonth",
+      joiners_in_month AS "joinersInMonth",
+      leavers_in_month AS "leaversInMonth"
+    FROM membership_dimension_monthly
+    WHERE ${where.join(" AND ")}
+    ORDER BY period_year, period_month, dimension, dimension_value`,
+    params
+  );
+  return rows;
+}
+
+async function getComparisonKpis(tenantId, asOfDateA, asOfDateB, segmentOpts) {
+  const [a, b] = await Promise.all([
+    getKpiFromSnapshot(tenantId, asOfDateA, segmentOpts),
+    getKpiFromSnapshot(tenantId, asOfDateB, segmentOpts),
+  ]);
+  return { periodA: a, periodB: b };
+}
+
+async function getComparisonByDimension(
+  tenantId,
+  asOfDateA,
+  asOfDateB,
+  dimension,
+  segmentOpts
+) {
+  const [rowsA, rowsB] = await Promise.all([
+    getDimensionBreakdownFromSnapshot(tenantId, asOfDateA, dimension, segmentOpts),
+    getDimensionBreakdownFromSnapshot(tenantId, asOfDateB, dimension, segmentOpts),
+  ]);
+  const mapB = new Map(rowsB.map((r) => [r.name, r.count]));
+  return rowsA.map((r) => ({
+    name: r.name,
+    periodA: r.count,
+    periodB: mapB.get(r.name) || 0,
+    change: (mapB.get(r.name) || 0) - r.count,
+  }));
+}
+
+module.exports = {
+  ensureSnapshot,
+  computeAndStoreMonthlyMetrics,
+  getKpiForPeriod,
+  getKpiFromSnapshot,
+  getDimensionBreakdownFromSnapshot,
+  getLiveStatsMonthly,
+  getComparisonKpis,
+  getComparisonByDimension,
+  DIMENSION_COLUMNS,
+};

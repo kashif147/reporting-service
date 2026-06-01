@@ -81,12 +81,19 @@ exports.getRegionBranchSummary = async (req, res) => {
 };
 exports.getUnifiedDashboard = async (req, res, next) => {
   try {
-    const filters = req.body;
-
-    const data = await dashboardService.getUnifiedDashboard(filters);
-
-    res.json(data);
+    const dashboardAnalytics = require("../services/dashboardAnalytics.service");
+    const { toMembershipDashboardShape } = require("../services/dashboardTransform.service");
+    const body = req.body || {};
+    const filters = body.filters || body;
+    const raw = await dashboardAnalytics.getUnifiedDashboard(
+      req.tenantId,
+      filters
+    );
+    const shaped = toMembershipDashboardShape(raw);
+    res.json({ status: "success", data: shaped, meta: { asOfDate: raw.asOfDate } });
   } catch (err) {
     next(err);
   }
 };
+
+exports.getMembershipDashboard = exports.getUnifiedDashboard;

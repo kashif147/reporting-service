@@ -1,99 +1,106 @@
-// Main RabbitMQ module exports - Now using shared middleware
 const {
   init,
   publisher,
   consumer,
-  EVENT_TYPES: MIDDLEWARE_EVENT_TYPES,
   shutdown,
+  EVENT_TYPES: MIDDLEWARE_EVENT_TYPES,
 } = require("@projectShell/rabbitmq-middleware");
+const { handleMembershipEvent } = require("./listeners/membership.listener");
+const { handleProfileEvent } = require("./listeners/profile.listener");
 
-// Initialize event system
+const QUEUES = {
+  membership: "reporting.membership.events",
+  profile: "reporting.profile.events",
+};
+
+const MEMBERSHIP_ROUTING_KEYS = [
+  "members.subscription.reporting.snapshot.v1",
+  "members.subscription.current.updated.v1",
+  "members.subscription.changed.v1",
+  "members.subscription.category.changed.v1",
+  "members.subscription.resigned.v1",
+  "members.subscription.resignation.undone.v1",
+  "members.subscription.cancelled.v1",
+  "members.subscription.cancellation.undone.v1",
+  "members.subscription.cancel.grace.ended.v1",
+  "members.member.created.requested.v1",
+  "members.subscription.upsert.requested.v1",
+];
+
 async function initEventSystem() {
-  try {
-    await init({
-      url: process.env.RABBIT_URL,
-      logger: console,
-      prefetch: 10,
-      connectionName: "reporting-service",
-      serviceName: "reporting-service",
-    });
-    console.log("✅ Event system initialized with middleware");
-  } catch (error) {
-    console.error("❌ Failed to initialize event system:", error.message);
-    throw error;
-  }
-}
-
-// Publish domain events using middleware
-async function publishDomainEvent(eventType, data, metadata = {}) {
-  const result = await publisher.publish(eventType, data, {
-    tenantId: metadata.tenantId,
-    correlationId: metadata.correlationId || generateEventId(),
-    metadata: {
-      service: "reporting-service",
-      version: "1.0",
-      ...metadata,
-    },
+  await init({
+    url: process.env.RABBIT_URL,
+    logger: console,
+    prefetch: 10,
+    connectionName: "reporting-service",
+    serviceName: "reporting-service",
   });
-
-  if (result.success) {
-    console.log("✅ Domain event published:", eventType, result.eventId);
-  } else {
-    console.error(
-      "❌ Failed to publish domain event:",
-      eventType,
-      result.error
-    );
-  }
-
-  return result.success;
+  console.log("✅ Reporting-service RabbitMQ initialised");
 }
 
-// Set up consumers using middleware
+async function setupQueue(queueName, bindings, handler) {
+  await consumer.createQueue(queueName, { durable: true, messageTtl: 3_600_000 });
+
+  const routingKeyExchange = new Map();
+  for (const { exchange, routingKeys } of bindings) {
+    await consumer.bindQueue(queueName, exchange, routingKeys);
+    for (const rk of routingKeys) {
+      if (!routingKeyExchange.has(rk)) routingKeyExchange.set(rk, exchange);
+    }
+  }
+
+  for (const [key, boundExchange] of routingKeyExchange) {
+    consumer.registerHandler(key, async (payload) => {
+      try {
+        await handler(payload, key, boundExchange);
+      } catch (err) {
+        console.error("Reporting consumer error:", key, err.message);
+        throw err;
+      }
+    });
+  }
+
+  await consumer.consume(queueName, { prefetch: 10 });
+  console.log("✅ Reporting consumer ready:", queueName);
+}
+
 async function setupConsumers() {
-  try {
-    console.log("🔧 Setting up RabbitMQ consumers...");
-    // Add your consumer setup here
-    console.log("✅ All consumers set up successfully");
-  } catch (error) {
-    console.error("❌ Failed to set up consumers:", error.message);
-    console.error("❌ Stack trace:", error.stack);
-    throw error;
-  }
+  await setupQueue(
+    QUEUES.membership,
+    [{ exchange: "membership.events", routingKeys: MEMBERSHIP_ROUTING_KEYS }],
+    handleMembershipEvent
+  );
+
+  await setupQueue(
+    QUEUES.profile,
+    [
+      {
+        exchange: "profile.events",
+        routingKeys: ["profile.created", "profile.updated", "profile.deleted"],
+      },
+    ],
+    (payload, eventType) => handleProfileEvent(payload, eventType)
+  );
 }
 
-// Graceful shutdown using middleware
 async function shutdownEventSystem() {
-  try {
-    await shutdown();
-    console.log("✅ Event system shutdown complete");
-  } catch (error) {
-    console.error("❌ Error during event system shutdown:", error.message);
-  }
+  await shutdown();
 }
 
-// Utility function
 function generateEventId() {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
-// Export event types
-const EVENT_TYPES = {
-  ...MIDDLEWARE_EVENT_TYPES,
-};
+const EVENT_TYPES = { ...MIDDLEWARE_EVENT_TYPES };
 
 module.exports = {
-  // Middleware functions
   init,
   publisher,
   consumer,
   shutdown,
-
-  // Service functions
   EVENT_TYPES,
   initEventSystem,
-  publishDomainEvent,
   setupConsumers,
   shutdownEventSystem,
+  generateEventId,
 };
-

@@ -37,6 +37,10 @@ services:
     env_file:
       - ${ENV_COMMON_PATH:-../../config/.env.common}
       - .env.staging
+    environment:
+      RUN_REPORTING_MIGRATIONS: "true"
+      ENABLE_REPORTING_CRON: "true"
+      DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
       interval: 10s

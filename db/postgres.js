@@ -12,6 +12,10 @@ const pool = new Pool(
       }
 );
 
+pool.on("connect", (client) => {
+  client.query("SET search_path TO reports, public");
+});
+
 // Test database connectivity
 const testConnection = async () => {
   try {

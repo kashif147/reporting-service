@@ -15,6 +15,12 @@ router.post(
   dashboardController.getUnifiedDashboard
 );
 
+router.post(
+  "/membership",
+  defaultPolicyMiddleware.requirePermission("reporting", "read"),
+  dashboardController.getMembershipDashboard
+);
+
 // Overview
 router.get(
   "/overview",

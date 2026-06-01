@@ -3,6 +3,7 @@ const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const dashboardRoutes = require("./routes/dashboard.routes");
+const membershipReportRoutes = require("./routes/membershipReport.routes");
 const errorHandler = require("./utils/error");
 const bizLogger = require("./config/bizLogger.js");
 const {
@@ -103,6 +104,7 @@ app.get("/health", (req, res) => {
 
 // Routes
 app.use("/dashboard", dashboardRoutes);
+app.use("/reports/membership", membershipReportRoutes);
 
 // Error handler
 app.use(logErrorMiddleware(bizLogger));
