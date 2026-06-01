@@ -5,7 +5,9 @@
 1. **subscription-service** publishes `members.subscription.reporting.snapshot.v1` (+ lifecycle events) to RabbitMQ.
 2. **reporting-service** consumers write `membership_event` + `membership_listing`, refresh today’s snapshot/metrics.
 3. **Cron** (02:00 UTC daily, 03:00 UTC on 1st) builds period snapshots + monthly aggregates.
-4. **Frontend** calls reporting-service via `REACT_APP_REPORTING_SERVICE_URL`.
+4. **Frontend** calls reporting-service via `REACT_APP_REPORTING_SERVICE_URL` (gateway: `…/reporting-service/api`; upstream paths are `/api/dashboard`, `/api/reports/membership`).
+
+**502 from gateway:** OpenResty cannot reach `reporting-service:4005` — container down or not on `gateway_app-net`. On the VM: `docker ps`, `docker logs reporting-service`, then `docker compose build --no-cache reporting-service && docker compose up -d reporting-service`.
 
 ### Frontend routes
 

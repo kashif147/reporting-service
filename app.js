@@ -102,7 +102,10 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "UP" });
 });
 
-// Routes
+// Routes — mount under /api for gateway (rewrite sends /reporting-service/api/* → /api/*)
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/reports/membership", membershipReportRoutes);
+// Direct access (Postman, local without gateway prefix)
 app.use("/dashboard", dashboardRoutes);
 app.use("/reports/membership", membershipReportRoutes);
 
