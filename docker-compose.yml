@@ -13,7 +13,7 @@ services:
     networks:
       - gateway_app-net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U reporting_user -d reporting_db"]
+      test: ["CMD-SHELL", "pg_isready -U reports_admin -d reporting_db"]
       interval: 10s
       timeout: 5s
       retries: 5
