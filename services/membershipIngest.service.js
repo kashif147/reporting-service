@@ -108,6 +108,19 @@ async function applyCancelled(data, meta) {
   });
 }
 
+async function applyCancellationUndone(data, meta) {
+  const tenantId = data.tenantId || meta.tenantId;
+  const subscriptionId = data.subscriptionId;
+  if (!tenantId || !subscriptionId) return;
+  await patchListingBySubscription(String(tenantId), String(subscriptionId), {
+    membership_status: "Active",
+    is_current: true,
+    cancelled_at: null,
+    last_event_id: meta.eventId,
+    last_event_type: meta.eventType,
+  });
+}
+
 async function applyProfileUpdated(data, meta) {
   const after = data.after;
   const tenantId = data.tenantId || after?.tenantId;
@@ -149,10 +162,17 @@ async function ingestMembershipEvent(payload, eventType, exchange) {
     return;
   }
 
-  if (
-    eventType === "members.subscription.resignation.undone.v1" ||
-    eventType === "members.subscription.cancellation.undone.v1"
-  ) {
+  if (eventType === "members.subscription.cancellation.undone.v1") {
+    if (data.after) {
+      await applySubscriptionChanged({ ...data, after: data.after }, meta);
+    } else {
+      await applyCancellationUndone(data, meta);
+    }
+    scheduleMetricsRefresh(data.tenantId || meta.tenantId);
+    return;
+  }
+
+  if (eventType === "members.subscription.resignation.undone.v1") {
     if (data.after) {
       await applySubscriptionChanged({ ...data, after: data.after }, meta);
     }

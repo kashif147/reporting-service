@@ -1,6 +1,12 @@
 const membershipReportService = require("../services/membershipReport.service");
 const comparisonReportService = require("../services/comparisonReport.service");
 const liveStatsReportService = require("../services/liveStatsReport.service");
+const {
+  getYearReconciliation,
+} = require("../services/membershipYearReconciliation.service");
+const {
+  getMembershipStatistics,
+} = require("../services/membershipStatisticsReport.service");
 const { buildSnapshotAndMetrics } = require("../services/snapshotBuild.service");
 
 exports.getPresetReport = async (req, res, next) => {
@@ -82,6 +88,42 @@ exports.getLiveStats = async (req, res, next) => {
     );
     res.json({ status: "success", data });
   } catch (err) {
+    next(err);
+  }
+};
+
+exports.getMembershipStatistics = async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({
+        error: { message: "Tenant required", code: "TENANT_REQUIRED" },
+      });
+    }
+    const data = await getMembershipStatistics(tenantId, req.body || {});
+    res.json({ status: "success", data });
+  } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: { message: err.message } });
+    }
+    next(err);
+  }
+};
+
+exports.getYearReconciliation = async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({
+        error: { message: "Tenant required", code: "TENANT_REQUIRED" },
+      });
+    }
+    const data = await getYearReconciliation(tenantId, req.body || {});
+    res.json({ status: "success", data });
+  } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: { message: err.message } });
+    }
     next(err);
   }
 };

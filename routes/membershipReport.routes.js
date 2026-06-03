@@ -32,6 +32,18 @@ router.post(
 );
 
 router.post(
+  "/statistics",
+  defaultPolicyMiddleware.requirePermission("reporting", "read"),
+  membershipReportController.getMembershipStatistics
+);
+
+router.post(
+  "/year-reconciliation",
+  defaultPolicyMiddleware.requirePermission("reporting", "read"),
+  membershipReportController.getYearReconciliation
+);
+
+router.post(
   "/snapshots/build",
   defaultPolicyMiddleware.requirePermission("reporting", "write"),
   membershipReportController.buildPeriodSnapshot

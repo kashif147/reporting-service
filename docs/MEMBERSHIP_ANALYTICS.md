@@ -139,6 +139,58 @@ Presets: `same_month_last_year`, `year_end_vs_current`, `last_month_vs_current`.
 
 `POST /reports/membership/live-stats` — monthly rows from `membership_dimension_monthly` (`recompute: true` rebuilds snapshots + aggregates).
 
+## Statistics report (UI: `/StatisticsReport`)
+
+`POST /reports/membership/statistics` — year movement summary and breakdowns by fee type and region. Same reconciliation rules as below; fee type maps to warehouse `payment_type` (e.g. Full fee, Reduced fee, No fee).
+
+## Year reconciliation (full-year active count)
+
+Use this when you need:
+
+**Opening active (1 Jan)** + **new join** + **rejoin** + **reinstate** − **cancelled** − **resigned** ≈ **closing active (31 Dec)**
+
+`POST /reports/membership/year-reconciliation`  
+Permission: `reporting:read`
+
+```json
+{
+  "year": 2025,
+  "includeStudents": false,
+  "includeHonorary": false,
+  "regions": ["Dublin"]
+}
+```
+
+Optional: `throughMonth` (1–12). Defaults to 12 for past years, or the current month for the current calendar year.
+
+### How opening and closing are defined
+
+| Term | Source |
+|------|--------|
+| Opening (1 Jan) | Active count on the **31 Dec (year−1)** month-end snapshot — same membership population at the start of 1 Jan |
+| Movements | Sum of monthly counts Jan–`throughMonth` from `membership_dimension_monthly` (or snapshot scans when dimension filters are set) |
+| Closing | Active count on the **month-end snapshot** for `throughMonth` (31 Dec when `throughMonth` is 12) |
+
+**Renewed** is not in the formula: those members were already active in opening.
+
+### Response
+
+- `opening`, `movements`, `closing` — counts and `asOfDate`
+- `reconciliation.calculatedClosing` — formula result
+- `reconciliation.variance` — `actualClosing − calculatedClosing` (should be 0 when snapshots and aggregates are complete)
+- `reconciliation.balances` — `true` when variance is 0
+
+Build prior-year and year-end snapshots if `snapshotAvailable` is false:
+
+```bash
+POST /reports/membership/snapshots/build
+{ "period": { "type": "year_end", "year": 2024 } }
+```
+
+### Membership listing report vs reconciliation
+
+`POST /reports/membership/listing` returns **one row per subscription in its current state**. Filtering by dates (e.g. start date in 2025) does **not** produce opening + movements − leavers. Use **year-reconciliation** or the executive dashboard YTD movement totals instead.
+
 ## Scheduled jobs
 
 `jobs/scheduledSnapshots.js` — configure cron to snapshot prior month-end after listing is stable.

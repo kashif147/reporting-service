@@ -21,6 +21,7 @@ const DIMENSION_COLUMNS = {
   region: "region",
   section: "section",
   workLocation: "work_location",
+  paymentType: "payment_type",
 };
 
 async function ensureSnapshot(tenantId, asOfDate, buildFn) {

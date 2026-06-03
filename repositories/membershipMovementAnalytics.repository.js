@@ -214,6 +214,78 @@ async function getMovementHeadlineForMonthFromSnapshot(
   return mapMovementRow(rows[0]);
 }
 
+/** Sum movement metrics Jan–throughMonth for year reconciliation. */
+async function sumYtdMovementBreakdown(
+  tenantId,
+  year,
+  throughMonth = 12,
+  segmentOpts = {},
+  dimensionOpts = {}
+) {
+  const endMonth = Math.min(Math.max(Number(throughMonth) || 12, 1), 12);
+  const totals = {
+    newJoin: 0,
+    rejoin: 0,
+    reinstate: 0,
+    cancelled: 0,
+    resigned: 0,
+  };
+
+  if (useSnapshotMovementQueries(dimensionOpts)) {
+    for (let month = 1; month <= endMonth; month += 1) {
+      const resolved = resolvePeriod({ type: "month_end", year, month });
+      const row = await getMovementHeadlineForMonthFromSnapshot(
+        tenantId,
+        resolved.asOfDate,
+        year,
+        month,
+        segmentOpts,
+        dimensionOpts
+      );
+      totals.newJoin += row.newJoin;
+      totals.rejoin += row.rejoin;
+      totals.reinstate += row.reinstate;
+      totals.cancelled += row.cancelled;
+      totals.resigned += row.resigned;
+    }
+  } else {
+    const where = [
+      "tenant_id = $1",
+      "period_year = $2",
+      "period_month <= $3",
+      "dimension = 'membershipCategory'",
+    ];
+    const params = [tenantId, year, endMonth];
+    appendSegmentFilter(where, params, segmentOpts);
+    const { rows } = await pool.query(
+      `SELECT
+        COALESCE(SUM(new_join_in_month), 0)::int AS new_join,
+        COALESCE(SUM(rejoin_in_month), 0)::int AS rejoin,
+        COALESCE(SUM(reinstate_in_month), 0)::int AS reinstate,
+        COALESCE(SUM(cancelled_in_month), 0)::int AS cancelled,
+        COALESCE(SUM(resigned_in_month), 0)::int AS resigned
+      FROM membership_dimension_monthly
+      WHERE ${where.join(" AND ")}`,
+      params
+    );
+    const r = rows[0] || {};
+    totals.newJoin = r.new_join || 0;
+    totals.rejoin = r.rejoin || 0;
+    totals.reinstate = r.reinstate || 0;
+    totals.cancelled = r.cancelled || 0;
+    totals.resigned = r.resigned || 0;
+  }
+
+  const joinersTotal = totals.newJoin + totals.rejoin + totals.reinstate;
+  const leaversTotal = totals.cancelled + totals.resigned;
+  return {
+    ...totals,
+    joinersTotal,
+    leaversTotal,
+    netChange: joinersTotal - leaversTotal,
+  };
+}
+
 async function getMovementHeadlineForMonth(
   tenantId,
   asOfDate,
@@ -365,4 +437,5 @@ module.exports = {
   getMovementHeadlineForMonth,
   getMovementBreakdownByDimension,
   getMovementTrend12Months,
+  sumYtdMovementBreakdown,
 };

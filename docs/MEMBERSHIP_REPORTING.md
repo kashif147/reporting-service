@@ -23,6 +23,7 @@
 | Comparison | `/ComparisonReport` |
 | Live Stats | `/LiveStatsReport` |
 | Membership Listing | `/MembershipListingReport` |
+| Statistics | `/StatisticsReport` |
 
 Requires policy permission **`reporting:read`** on membership report routes and dashboard. Save View templates for Membership Listing use **`reporting:write`** on `POST/PUT/DELETE /api/templates` (stored in reporting-service MongoDB — set `MONGO_URI` on the service).
 
@@ -61,6 +62,20 @@ Data is ingested from RabbitMQ (not written by the CRM API directly).
 - Resign / cancel
 
 ## API
+
+### Statistics (year movement)
+
+`POST /reports/membership/statistics` (requires `reporting:read`)
+
+Membership **Statistics** report: summary reconciliation for a calendar year plus breakdowns by **fee type** (`payment_type`) and **region**. Body: `{ "year": 2025, "throughMonth": 12, "includeStudents": false, "includeHonorary": false }` plus optional dashboard dimension filters (`regions`, `grades`, …).
+
+### Year reconciliation (API only)
+
+`POST /reports/membership/year-reconciliation` (requires `reporting:read`)
+
+Summary-only variant used internally by Statistics. See `docs/MEMBERSHIP_ANALYTICS.md` § Year reconciliation.
+
+### Membership listing
 
 `POST /reports/membership/listing` (requires `reporting:read`)
 
