@@ -3,9 +3,11 @@ const router = express.Router();
 const gridFilterTemplateController = require("../controllers/grid.filter.template.controller");
 const { authenticate, requireTenant } = require("../middlewares/auth");
 const { defaultPolicyMiddleware } = require("../middlewares/policy.middleware");
+const requireMongo = require("../middlewares/requireMongo");
 
 router.use(authenticate);
 router.use(requireTenant);
+router.use(requireMongo);
 
 router.post(
   "/",

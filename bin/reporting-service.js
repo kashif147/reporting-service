@@ -1,15 +1,21 @@
 const dotenv = require("dotenv");
-dotenv.config({ path: ".env.staging" });
+const fs = require("fs");
 
-const app = require("../app");
+const envName = process.env.NODE_ENV || "staging";
+for (const file of [`.env.${envName}`, ".env.staging", ".env"]) {
+  if (fs.existsSync(file)) {
+    dotenv.config({ path: file, override: false });
+  }
+}
+
 const { testConnection } = require("../db/postgres");
 const { runMigrations } = require("../db/runMigrations");
 const {
-  initEventSystem,
-  setupConsumers,
-  shutdownEventSystem,
-} = require("../rabbitMQ");
-const { connectMongo, disconnectMongo } = require("../config/mongo");
+  connectMongo,
+  disconnectMongo,
+  resolveMongoUri,
+  maskMongoUri,
+} = require("../config/mongo");
 
 const PORT = process.env.PORT || 4005;
 
@@ -20,30 +26,32 @@ async function start() {
 
   testConnection();
 
-  try {
+  const mongoUri = resolveMongoUri();
+  console.log(`MongoDB URI: ${maskMongoUri(mongoUri)}`);
+
+  if (mongoUri) {
     await connectMongo();
-  } catch (error) {
-    console.error("❌ MongoDB init failed:", error.message);
-    console.warn("⚠️ Grid template Save View requires MONGO_URI on reporting-service");
+  } else {
+    console.warn(
+      "⚠️ MONGO_URI not set — grid template Save View disabled for reporting-service",
+    );
   }
+
+  const app = require("../app");
+
+  let shutdownEventSystem = async () => {};
 
   if (process.env.RABBIT_URL) {
     try {
-      await initEventSystem();
-      await setupConsumers();
+      const rabbit = require("../rabbitMQ");
+      await rabbit.initEventSystem();
+      await rabbit.setupConsumers();
+      shutdownEventSystem = rabbit.shutdownEventSystem;
       console.log("✅ Reporting-service RabbitMQ consumers ready");
     } catch (error) {
       console.error("❌ RabbitMQ init failed:", error.message);
       console.warn("⚠️ Continuing without RabbitMQ (read-only / degraded)");
     }
-
-    const shutdown = async () => {
-      await shutdownEventSystem();
-      await disconnectMongo();
-      process.exit(0);
-    };
-    process.on("SIGTERM", shutdown);
-    process.on("SIGINT", shutdown);
   } else {
     console.warn("⚠️ RABBIT_URL not set — event ingestion disabled");
   }
@@ -53,12 +61,20 @@ async function start() {
     startScheduledSnapshots();
   }
 
+  const shutdown = async () => {
+    await shutdownEventSystem();
+    await disconnectMongo();
+    process.exit(0);
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+
   app.listen(PORT, () => {
     console.log(`Reporting service running on port ${PORT}`);
   });
 }
 
 start().catch((err) => {
-  console.error(err);
+  console.error("Reporting service failed to start:", err.message);
   process.exit(1);
 });

@@ -9,6 +9,7 @@ const responseMiddleware = require("./middlewares/response.mw");
 const { templateErrorHandler } = require("./middlewares/response.mw");
 const errorHandler = require("./utils/error");
 const bizLogger = require("./config/bizLogger.js");
+const { isMongoConnected, resolveMongoUri } = require("./config/mongo");
 const {
   correlationIdMiddleware,
   logErrorMiddleware,
@@ -111,7 +112,12 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "UP" });
+  const mongoUri = resolveMongoUri();
+  let mongo = "not_configured";
+  if (mongoUri) {
+    mongo = isMongoConnected() ? "connected" : "disconnected";
+  }
+  res.status(200).json({ status: "UP", mongo });
 });
 
 // Routes — mount under /api for gateway (rewrite sends /reporting-service/api/* → /api/*)

@@ -22,6 +22,10 @@ class AppError extends Error {
   static unauthorized(message = "Unauthorized", extras = {}) {
     return new AppError(message, 401, "UNAUTHORIZED", extras);
   }
+
+  static serviceUnavailable(message = "Service unavailable", extras = {}) {
+    return new AppError(message, 503, "SERVICE_UNAVAILABLE", extras);
+  }
 }
 
 module.exports = { AppError };

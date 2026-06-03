@@ -61,7 +61,7 @@ const TemplateSchema = new mongoose.Schema(
       },
     },
   },
-  { timestamps: true },
+  { timestamps: true, bufferCommands: false },
 );
 
 TemplateSchema.index({ userId: 1, "meta.deleted": 1 });
