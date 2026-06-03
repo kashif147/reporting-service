@@ -42,6 +42,7 @@ services:
       ENABLE_REPORTING_CRON: "true"
       GATEWAY_HANDLES_CORS: "true"
       DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-}
+      MONGO_URI: ${MONGO_URI:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
       interval: 10s

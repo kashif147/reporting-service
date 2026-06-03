@@ -4,6 +4,9 @@ const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const membershipReportRoutes = require("./routes/membershipReport.routes");
+const gridFilterTemplateRoutes = require("./routes/grid.filter.template.routes");
+const responseMiddleware = require("./middlewares/response.mw");
+const { templateErrorHandler } = require("./middlewares/response.mw");
 const errorHandler = require("./utils/error");
 const bizLogger = require("./config/bizLogger.js");
 const {
@@ -90,6 +93,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 app.use(express.json());
+app.use(responseMiddleware);
 
 app.use(correlationIdMiddleware);
 app.use("/api", createSystemLogsRouter(bizLogger));
@@ -113,12 +117,15 @@ app.get("/health", (req, res) => {
 // Routes — mount under /api for gateway (rewrite sends /reporting-service/api/* → /api/*)
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports/membership", membershipReportRoutes);
+app.use("/api/templates", gridFilterTemplateRoutes);
 // Direct access (Postman, local without gateway prefix)
 app.use("/dashboard", dashboardRoutes);
 app.use("/reports/membership", membershipReportRoutes);
+app.use("/templates", gridFilterTemplateRoutes);
 
 // Error handler
 app.use(logErrorMiddleware(bizLogger));
+app.use(templateErrorHandler);
 app.use(errorHandler);
 
 module.exports = app;

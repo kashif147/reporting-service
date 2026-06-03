@@ -22,8 +22,11 @@
 | Cancelled | `/CancelledMembersReport` |
 | Comparison | `/ComparisonReport` |
 | Live Stats | `/LiveStatsReport` |
+| Membership Listing | `/MembershipListingReport` |
 
-Requires policy permission **`reporting:read`** on membership report routes and dashboard.
+Requires policy permission **`reporting:read`** on membership report routes and dashboard. Save View templates for Membership Listing use **`reporting:write`** on `POST/PUT/DELETE /api/templates` (stored in reporting-service MongoDB — set `MONGO_URI` on the service).
+
+Frontend report standard (columns, filters, CSV/XLSX/PDF/print, row chrome): `frontend/ProjectShell-1/docs/MEMBERSHIP_REPORT_STANDARD.md`.
 
 ## Overview
 

@@ -9,6 +9,7 @@ const {
   setupConsumers,
   shutdownEventSystem,
 } = require("../rabbitMQ");
+const { connectMongo, disconnectMongo } = require("../config/mongo");
 
 const PORT = process.env.PORT || 4005;
 
@@ -18,6 +19,13 @@ async function start() {
   }
 
   testConnection();
+
+  try {
+    await connectMongo();
+  } catch (error) {
+    console.error("❌ MongoDB init failed:", error.message);
+    console.warn("⚠️ Grid template Save View requires MONGO_URI on reporting-service");
+  }
 
   if (process.env.RABBIT_URL) {
     try {
@@ -31,6 +39,7 @@ async function start() {
 
     const shutdown = async () => {
       await shutdownEventSystem();
+      await disconnectMongo();
       process.exit(0);
     };
     process.on("SIGTERM", shutdown);
