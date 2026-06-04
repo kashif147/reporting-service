@@ -69,6 +69,8 @@ Data is ingested from RabbitMQ (not written by the CRM API directly).
 
 Membership **Statistics** report: summary reconciliation for a calendar year plus breakdowns by **fee type** (`payment_type`) and **region**. Body: `{ "year": 2025, "throughMonth": 12, "includeStudents": false, "includeHonorary": false }` plus optional dashboard dimension filters (`regions`, `grades`, …).
 
+By default the endpoint **reads existing snapshots and monthly aggregates** only (no rebuild). Pass `"recompute": true` or `"ensureSnapshots": true` to trigger snapshot/metric builds for the opening/closing periods and YTD months (use sparingly; e.g. after ETL or from an admin job).
+
 ### Year reconciliation (API only)
 
 `POST /reports/membership/year-reconciliation` (requires `reporting:read`)

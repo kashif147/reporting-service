@@ -2,6 +2,7 @@ const { AppError } = require("../errors/AppError");
 const {
   FILTER_OPERATOR,
   MEMBERSHIP_LISTING_TEMPLATE_FILTER_KEYS,
+  STATISTICS_REPORT_TEMPLATE_FILTER_KEYS,
   REPORTING_TEMPLATE_TYPES,
 } = require("../constants/gridTemplateEnums");
 
@@ -21,6 +22,7 @@ function validateFilterEntry(key, entry) {
 
 function allowedKeysForType(type) {
   if (type === "membershiplisting") return MEMBERSHIP_LISTING_TEMPLATE_FILTER_KEYS;
+  if (type === "statisticsreport") return STATISTICS_REPORT_TEMPLATE_FILTER_KEYS;
   return null;
 }
 

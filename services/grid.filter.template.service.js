@@ -36,6 +36,9 @@ function templateTypeMatchForList(type) {
   if (lower === "membershiplisting") {
     return { $in: ["membershiplisting", "MembershipListing", "membershipListing"] };
   }
+  if (lower === "statisticsreport") {
+    return { $in: ["statisticsreport", "StatisticsReport", "statisticsReport"] };
+  }
   return lower;
 }
 

@@ -38,8 +38,8 @@ async function getYearReconciliation(tenantId, filters = {}) {
   );
 
   const segmentOpts = {
-    includeStudents: filters.includeStudents === true,
-    includeHonorary: filters.includeHonorary === true,
+    includeStudents: filters.includeStudents !== false,
+    includeHonorary: filters.includeHonorary !== false,
   };
   const dimensionOpts = normalizeMembershipDimensionFilters(filters);
 
@@ -50,13 +50,18 @@ async function getYearReconciliation(tenantId, filters = {}) {
     month: throughMonth,
   });
 
-  await Promise.all([
-    ensurePeriodSnapshot(tenantId, openingPeriod.asOfDate),
-    ensurePeriodSnapshot(tenantId, closingPeriod.asOfDate),
-    ...Array.from({ length: throughMonth }, (_, i) =>
-      ensureMonthlyMetricsForPeriod(tenantId, year, i + 1),
-    ),
-  ]);
+  const shouldEnsureSnapshots =
+    filters.recompute === true || filters.ensureSnapshots === true;
+
+  if (shouldEnsureSnapshots) {
+    await Promise.all([
+      ensurePeriodSnapshot(tenantId, openingPeriod.asOfDate),
+      ensurePeriodSnapshot(tenantId, closingPeriod.asOfDate),
+      ...Array.from({ length: throughMonth }, (_, i) =>
+        ensureMonthlyMetricsForPeriod(tenantId, year, i + 1),
+      ),
+    ]);
+  }
 
   const [hasOpeningSnapshot, hasClosingSnapshot, openingKpi, closingKpi, movements] =
     await Promise.all([
