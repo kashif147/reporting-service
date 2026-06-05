@@ -432,10 +432,101 @@ async function getMovementTrend12Months(
   );
 }
 
+/** YTD movement totals grouped by dimension value (respects toolbar dimension filters). */
+async function sumYtdMovementsByDimension(
+  tenantId,
+  year,
+  throughMonth,
+  dimension,
+  segmentOpts,
+  dimensionOpts = {}
+) {
+  const endMonth = Math.min(Math.max(Number(throughMonth) || 12, 1), 12);
+  const map = new Map();
+
+  const accumulate = (rows) => {
+    for (const row of rows) {
+      const name = row.name;
+      const prev = map.get(name) || {
+        newJoin: 0,
+        rejoin: 0,
+        reinstate: 0,
+        resigned: 0,
+        cancelled: 0,
+      };
+      map.set(name, {
+        newJoin: prev.newJoin + (row.newJoin || 0),
+        rejoin: prev.rejoin + (row.rejoin || 0),
+        reinstate: prev.reinstate + (row.reinstate || 0),
+        resigned: prev.resigned + (row.resigned || 0),
+        cancelled: prev.cancelled + (row.cancelled || 0),
+      });
+    }
+  };
+
+  if (useSnapshotMovementQueries(dimensionOpts)) {
+    for (let month = 1; month <= endMonth; month += 1) {
+      const resolved = resolvePeriod({ type: "month_end", year, month });
+      const rows = await getMovementBreakdownByDimensionFromSnapshot(
+        tenantId,
+        resolved.asOfDate,
+        year,
+        month,
+        dimension,
+        segmentOpts,
+        dimensionOpts,
+        { limit: 5000 }
+      );
+      accumulate(rows);
+    }
+    return map;
+  }
+
+  const where = [
+    "tenant_id = $1",
+    "period_year = $2",
+    "period_month <= $3",
+    "dimension = $4",
+  ];
+  const params = [tenantId, year, endMonth, dimension];
+  appendSegmentFilter(where, params, segmentOpts);
+
+  const { rows } = await pool.query(
+    `SELECT
+      dimension_value AS name,
+      COALESCE(SUM(new_join_in_month), 0)::int AS new_join,
+      COALESCE(SUM(rejoin_in_month), 0)::int AS rejoin,
+      COALESCE(SUM(reinstate_in_month), 0)::int AS reinstate,
+      COALESCE(SUM(resigned_in_month), 0)::int AS resigned,
+      COALESCE(SUM(cancelled_in_month), 0)::int AS cancelled
+    FROM membership_dimension_monthly
+    WHERE ${where.join(" AND ")}
+    GROUP BY dimension_value
+    ORDER BY name`,
+    params
+  );
+
+  for (const row of rows) {
+    accumulate([
+      mapMovementRow({
+        name: row.name,
+        new_join: row.new_join,
+        rejoin: row.rejoin,
+        reinstate: row.reinstate,
+        resigned: row.resigned,
+        cancelled: row.cancelled,
+      }),
+    ]);
+  }
+
+  return map;
+}
+
 module.exports = {
   mapMovementRow,
   getMovementHeadlineForMonth,
   getMovementBreakdownByDimension,
   getMovementTrend12Months,
   sumYtdMovementBreakdown,
+  sumYtdMovementsByDimension,
 };

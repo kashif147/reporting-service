@@ -1,4 +1,8 @@
-const { resolvePeriod } = require("../lib/reportingPeriods");
+const {
+  resolvePeriod,
+  toDateOnly,
+  formatDisplayDate,
+} = require("../lib/reportingPeriods");
 const {
   normalizeMembershipDimensionFilters,
 } = require("../lib/membershipDimensionFilters");
@@ -44,11 +48,16 @@ async function getYearReconciliation(tenantId, filters = {}) {
   const dimensionOpts = normalizeMembershipDimensionFilters(filters);
 
   const openingPeriod = resolvePeriod({ type: "year_end", year: year - 1 });
-  const closingPeriod = resolvePeriod({
-    type: "month_end",
-    year,
-    month: throughMonth,
-  });
+  const openingDisplayDate = `${year}-01-01`;
+  const isThroughCurrentMonth =
+    isCurrentYear && throughMonth === now.getUTCMonth() + 1;
+  const closingPeriod = isThroughCurrentMonth
+    ? resolvePeriod({ type: "custom", date: toDateOnly(now) })
+    : resolvePeriod({
+        type: "month_end",
+        year,
+        month: throughMonth,
+      });
 
   const shouldEnsureSnapshots =
     filters.recompute === true || filters.ensureSnapshots === true;
@@ -98,7 +107,8 @@ async function getYearReconciliation(tenantId, filters = {}) {
     year,
     throughMonth,
     opening: {
-      label: `1 Jan ${year} (prior year-end snapshot)`,
+      label: formatDisplayDate(openingDisplayDate),
+      displayAsOfDate: openingDisplayDate,
       asOfDate: openingPeriod.asOfDate,
       activeTotal: openingActive,
       snapshotAvailable: hasOpeningSnapshot,
@@ -116,10 +126,7 @@ async function getYearReconciliation(tenantId, filters = {}) {
       note: "Renewed subscriptions are excluded; they were already in opening active.",
     },
     closing: {
-      label:
-        throughMonth === 12
-          ? `31 Dec ${year}`
-          : `Month-end ${closingPeriod.label}`,
+      label: formatDisplayDate(closingPeriod.asOfDate),
       asOfDate: closingPeriod.asOfDate,
       activeTotal: closingActive,
       snapshotAvailable: hasClosingSnapshot,

@@ -1,6 +1,7 @@
 const { getYearReconciliation } = require("./membershipYearReconciliation.service");
 const {
   getStatisticsBreakdown,
+  getLocationHierarchyBreakdown,
 } = require("../repositories/membershipStatistics.repository");
 
 function buildSummaryFromReconciliation(reconciliation) {
@@ -46,7 +47,22 @@ async function getMembershipStatistics(tenantId, filters = {}) {
   };
   const dimensionOpts = reconciliation.filters.dimensions || {};
 
-  const [byFeeType, byRegion] = await Promise.all([
+  const [
+    byMembershipCategory,
+    byFeeType,
+    byRegion,
+    byLocation,
+  ] = await Promise.all([
+    getStatisticsBreakdown(
+      tenantId,
+      "membershipCategory",
+      reconciliation.opening.asOfDate,
+      reconciliation.closing.asOfDate,
+      reconciliation.year,
+      reconciliation.throughMonth,
+      segmentOpts,
+      dimensionOpts,
+    ),
     getStatisticsBreakdown(
       tenantId,
       "feeType",
@@ -67,10 +83,18 @@ async function getMembershipStatistics(tenantId, filters = {}) {
       segmentOpts,
       dimensionOpts,
     ),
+    getLocationHierarchyBreakdown(
+      tenantId,
+      reconciliation.closing.asOfDate,
+      reconciliation.year,
+      reconciliation.throughMonth,
+      segmentOpts,
+      dimensionOpts,
+    ),
   ]);
 
   return {
-    reportTitle: "Statistics",
+    reportTitle: "Live Membership Statistics Report",
     year: reconciliation.year,
     throughMonth: reconciliation.throughMonth,
     period: {
@@ -80,11 +104,13 @@ async function getMembershipStatistics(tenantId, filters = {}) {
     },
     summary,
     breakdowns: {
+      byMembershipCategory,
       byFeeType,
       byRegion,
+      byLocation,
     },
     notes: [
-      "Opening active is measured at the prior 31 Dec snapshot (start of 1 Jan).",
+      "Opening active is the active count at 01 Jan (prior 31 Dec snapshot). Movements are year-to-date through the selected month.",
       "Joined = new members + re-joined; lapsed = cancelled in period.",
       "Renewed members are not counted as joiners — they were already active at opening.",
       "Each breakdown row should satisfy: opening + joined + reinstatements − resigned − lapsed = calculated closing.",
