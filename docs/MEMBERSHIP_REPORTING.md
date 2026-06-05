@@ -71,6 +71,32 @@ Membership **Statistics** report: summary reconciliation for a calendar year plu
 
 By default the endpoint **reads existing snapshots and monthly aggregates** only (no rebuild). Pass `"recompute": true` or `"ensureSnapshots": true` to trigger snapshot/metric builds for the opening/closing periods and YTD months (use sparingly; e.g. after ETL or from an admin job).
 
+### Workplace membership breakdown
+
+`POST /reports/membership/workplace-breakdown` (requires `reporting:read`)
+
+Rolling monthly member counts per **work location**, grouped by **region**, with MoM/YoY deltas and **official (IRO)** from `membership_location_lookup` (sync via `node scripts/sync-location-lookups.js --tenant=TENANT_ID`).
+
+Body example:
+
+```json
+{
+  "endYear": 2024,
+  "endMonth": 4,
+  "rollingMonths": 12,
+  "membershipStatuses": ["Active"],
+  "includeStudents": false,
+  "includeHonorary": false,
+  "audienceScope": "full",
+  "ensureSnapshots": true,
+  "syncLookups": true
+}
+```
+
+Optional filters: `regions`, `branches`, `workLocations`, `grades`, `membershipCategories`, `officials`, `excludeGrades`. Audience scoping: `audienceScope` (`full` | `official` | `manager`) with `scopeUserId` for official/manager views (manager deferred until ADIR hierarchy is configured).
+
+Run migration `005_workplace_breakdown.sql` before first use (`npm run migrate` in reporting-service).
+
 ### Year reconciliation (API only)
 
 `POST /reports/membership/year-reconciliation` (requires `reporting:read`)

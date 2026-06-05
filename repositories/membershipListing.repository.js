@@ -88,6 +88,8 @@ async function patchListingByProfile(tenantId, profileId, patch) {
 const MOVEMENT_ALIASES = {
   "new joiners": "NewJoin",
   "new joiner": "NewJoin",
+  "new join": "NewJoin",
+  new: "NewJoin",
   newjoin: "NewJoin",
   "re-joiners": "Rejoin",
   rejoin: "Rejoin",

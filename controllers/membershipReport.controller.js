@@ -7,6 +7,9 @@ const {
 const {
   getMembershipStatistics,
 } = require("../services/membershipStatisticsReport.service");
+const {
+  getWorkplaceBreakdownReport,
+} = require("../services/workplaceBreakdownReport.service");
 const { buildSnapshotAndMetrics } = require("../services/snapshotBuild.service");
 
 exports.getPresetReport = async (req, res, next) => {
@@ -101,6 +104,24 @@ exports.getMembershipStatistics = async (req, res, next) => {
       });
     }
     const data = await getMembershipStatistics(tenantId, req.body || {});
+    res.json({ status: "success", data });
+  } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: { message: err.message } });
+    }
+    next(err);
+  }
+};
+
+exports.getWorkplaceBreakdown = async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({
+        error: { message: "Tenant required", code: "TENANT_REQUIRED" },
+      });
+    }
+    const data = await getWorkplaceBreakdownReport(tenantId, req.body || {});
     res.json({ status: "success", data });
   } catch (err) {
     if (err.statusCode === 400) {

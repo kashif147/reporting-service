@@ -38,6 +38,12 @@ router.post(
 );
 
 router.post(
+  "/workplace-breakdown",
+  defaultPolicyMiddleware.requirePermission("reporting", "read"),
+  membershipReportController.getWorkplaceBreakdown
+);
+
+router.post(
   "/year-reconciliation",
   defaultPolicyMiddleware.requirePermission("reporting", "read"),
   membershipReportController.getYearReconciliation

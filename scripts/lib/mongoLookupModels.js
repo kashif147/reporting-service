@@ -22,6 +22,7 @@ const lookupSchema = new mongoose.Schema(
     DisplayName: String,
     Parentlookupid: { type: mongoose.Schema.Types.ObjectId, ref: "Lookup" },
     lookuptypeId: { type: mongoose.Schema.Types.ObjectId, ref: "LookupType" },
+    officer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     isactive: Boolean,
     isdeleted: Boolean,
   },
