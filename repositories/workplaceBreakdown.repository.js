@@ -1,7 +1,7 @@
 const { pool } = require("../db/postgres");
-const { appendSegmentFilter } = require("./memberSegment");
-const { appendDimensionFilters } = require("./membershipDimensionFilters");
-const { DEFAULT_EXCLUDE_GRADES } = require("./workplaceBreakdownUtils");
+const { appendSegmentFilter } = require("../lib/memberSegment");
+const { appendDimensionFilters } = require("../lib/membershipDimensionFilters");
+const { DEFAULT_EXCLUDE_GRADES } = require("../lib/workplaceBreakdownUtils");
 
 function normalizeGradeList(raw) {
   if (!Array.isArray(raw)) return [];

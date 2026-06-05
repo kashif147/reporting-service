@@ -63,8 +63,17 @@ async function getLocationLookupMap(tenantId) {
   return new Map(rows.map((r) => [r.work_location, r]));
 }
 
+async function getLocationLookupCount(tenantId) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)::int AS count FROM membership_location_lookup WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  return Number(rows[0]?.count) || 0;
+}
+
 module.exports = {
   upsertLocationLookups,
   getLocationLookupsForTenant,
   getLocationLookupMap,
+  getLocationLookupCount,
 };

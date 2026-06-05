@@ -8,11 +8,18 @@ const {
   DEFAULT_EXCLUDE_GRADES,
 } = require("../lib/workplaceBreakdownUtils");
 const { countMembersByWorkLocationForDates } = require("../repositories/workplaceBreakdown.repository");
-const { getLocationLookupMap } = require("../repositories/locationLookup.repository");
+const {
+  getLocationLookupMap,
+  getLocationLookupCount,
+} = require("../repositories/locationLookup.repository");
 const { syncLocationLookupsForTenant } = require("./locationLookupSync.service");
 const { ensurePeriodSnapshot } = require("./snapshotBuild.service");
+const { hasPeriodSnapshot } = require("../repositories/membershipSnapshot.repository");
 
 const REPORT_TITLE = "Workplace Membership Breakdown Report";
+const SNAPSHOT_BUILD_CONCURRENCY = 3;
+/** Limit snapshot builds per request to avoid gateway timeouts. */
+const MAX_SNAPSHOTS_PER_REQUEST = 4;
 
 function pickStringArray(raw) {
   if (!Array.isArray(raw)) return [];
@@ -50,15 +57,35 @@ function normalizeRequest(body = {}) {
     audienceScope: String(body.audienceScope || "full").toLowerCase(),
     scopeUserId: body.scopeUserId ? String(body.scopeUserId) : null,
     ensureSnapshots:
-      body.ensureSnapshots === true ||
-      body.recompute === true ||
-      body.syncLookups === true,
-    syncLookups: body.syncLookups === true || body.ensureSnapshots === true,
+      body.ensureSnapshots === true || body.recompute === true,
+    syncLookups: body.syncLookups === true,
   };
 }
 
-function slotKey(year, month) {
-  return `${year}-${String(month).padStart(2, "0")}`;
+async function findMissingSnapshotDates(tenantId, dates = []) {
+  const unique = [...new Set(dates.filter(Boolean))];
+  const missing = [];
+  for (const asOfDate of unique) {
+    if (!(await hasPeriodSnapshot(tenantId, asOfDate))) {
+      missing.push(asOfDate);
+    }
+  }
+  return missing;
+}
+
+async function ensureSnapshotsForDates(tenantId, dates = []) {
+  const missing = await findMissingSnapshotDates(tenantId, dates);
+  const toBuild = missing.slice(0, MAX_SNAPSHOTS_PER_REQUEST);
+  for (let i = 0; i < toBuild.length; i += SNAPSHOT_BUILD_CONCURRENCY) {
+    const batch = toBuild.slice(i, i + SNAPSHOT_BUILD_CONCURRENCY);
+    await Promise.all(
+      batch.map((asOfDate) => ensurePeriodSnapshot(tenantId, asOfDate)),
+    );
+  }
+  return {
+    built: toBuild.length,
+    remaining: Math.max(0, missing.length - toBuild.length),
+  };
 }
 
 function buildMonthlyCountsForRow(countMap, slots) {
@@ -149,6 +176,11 @@ async function getWorkplaceBreakdownReport(tenantId, body = {}) {
 
   if (opts.syncLookups) {
     await syncLocationLookupsForTenant(tenantId);
+  } else {
+    const lookupCount = await getLocationLookupCount(tenantId);
+    if (lookupCount === 0) {
+      await syncLocationLookupsForTenant(tenantId);
+    }
   }
 
   const slots = buildRollingMonthSlots(
@@ -157,17 +189,34 @@ async function getWorkplaceBreakdownReport(tenantId, body = {}) {
     opts.rollingMonths,
   );
 
+  const snapshotDates = slots.map((s) => s.asOfDate);
+  const notes = [];
+  let builtSnapshotCount = 0;
+  let remainingSnapshotCount = 0;
+
   if (opts.ensureSnapshots) {
-    for (const slot of slots) {
-      await ensurePeriodSnapshot(tenantId, slot.asOfDate);
+    const snapshotBuild = await ensureSnapshotsForDates(tenantId, snapshotDates);
+    builtSnapshotCount = snapshotBuild.built;
+    remainingSnapshotCount = snapshotBuild.remaining;
+    if (builtSnapshotCount > 0) {
+      notes.push(
+        `Built ${builtSnapshotCount} missing month-end snapshot(s).`,
+      );
     }
-    const yoySlot = slots.length >= 13 ? slots[0] : null;
-    if (yoySlot && !slots.some((s) => s.asOfDate === yoySlot.asOfDate)) {
-      await ensurePeriodSnapshot(tenantId, yoySlot.asOfDate);
+    if (remainingSnapshotCount > 0) {
+      notes.push(
+        `${remainingSnapshotCount} snapshot(s) still missing — click Filter again to continue building, or run the snapshot admin job.`,
+      );
+    }
+  } else {
+    const missing = await findMissingSnapshotDates(tenantId, snapshotDates);
+    if (missing.length) {
+      notes.push(
+        `${missing.length} month-end snapshot(s) are not available yet — counts for those months may be zero. Click Filter to build missing snapshots (may take a few minutes).`,
+      );
     }
   }
 
-  const snapshotDates = slots.map((s) => s.asOfDate);
   const segmentOpts = {
     includeStudents: opts.includeStudents,
     includeHonorary: opts.includeHonorary,
@@ -338,7 +387,7 @@ async function getWorkplaceBreakdownReport(tenantId, body = {}) {
       scopeUserId: opts.scopeUserId,
       dimensions: opts.dimensionOpts,
     },
-    notes: [],
+    notes,
   };
 }
 
