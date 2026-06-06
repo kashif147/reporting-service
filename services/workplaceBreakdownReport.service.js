@@ -174,13 +174,25 @@ async function getWorkplaceBreakdownReport(tenantId, body = {}) {
     };
   }
 
-  if (opts.syncLookups) {
-    await syncLocationLookupsForTenant(tenantId);
-  } else {
-    const lookupCount = await getLocationLookupCount(tenantId);
-    if (lookupCount === 0) {
+  const notes = [];
+
+  try {
+    if (opts.syncLookups) {
       await syncLocationLookupsForTenant(tenantId);
+    } else {
+      const lookupCount = await getLocationLookupCount(tenantId);
+      if (lookupCount === 0) {
+        await syncLocationLookupsForTenant(tenantId);
+      }
     }
+  } catch (syncError) {
+    console.error(
+      "[workplaceBreakdown] location lookup sync failed:",
+      syncError.message,
+    );
+    notes.push(
+      "Work location officer lookup sync failed — official initials may be incomplete. Set USER_SERVICE_MONGO_URI on reporting-service or run scripts/sync-location-lookups.js.",
+    );
   }
 
   const slots = buildRollingMonthSlots(
@@ -190,7 +202,6 @@ async function getWorkplaceBreakdownReport(tenantId, body = {}) {
   );
 
   const snapshotDates = slots.map((s) => s.asOfDate);
-  const notes = [];
   let builtSnapshotCount = 0;
   let remainingSnapshotCount = 0;
 

@@ -22,6 +22,21 @@ function maskMongoUri(uri) {
   return uri.replace(/\/\/([^:@/]+):([^@/]+)@/, "//$1:***@");
 }
 
+function resetConnectPromise() {
+  connectPromise = null;
+}
+
+if (!mongoose.connection.listenerCount("disconnected")) {
+  mongoose.connection.on("disconnected", () => {
+    resetConnectPromise();
+    console.warn("⚠️ Reporting-service MongoDB disconnected");
+  });
+  mongoose.connection.on("error", (error) => {
+    resetConnectPromise();
+    console.error("❌ Reporting-service MongoDB connection error:", error.message);
+  });
+}
+
 async function connectMongo() {
   const mongoUri = resolveMongoUri();
 
@@ -51,7 +66,7 @@ async function connectMongo() {
       return true;
     })
     .catch((error) => {
-      connectPromise = null;
+      resetConnectPromise();
       console.error(
         `❌ Reporting-service MongoDB connection failed (${maskMongoUri(mongoUri)}):`,
         error.message,
@@ -64,11 +79,12 @@ async function connectMongo() {
 
 async function ensureMongoConnected() {
   if (isMongoConnected()) return true;
+  resetConnectPromise();
   return connectMongo();
 }
 
 async function disconnectMongo() {
-  connectPromise = null;
+  resetConnectPromise();
   if (mongoose.connection.readyState === 0) return;
   await mongoose.disconnect();
 }

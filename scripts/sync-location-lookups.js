@@ -7,6 +7,7 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") }
 
 const {
   syncLocationLookupsForTenant,
+  closeUserServiceMongoConnection,
 } = require("../services/locationLookupSync.service");
 
 async function main() {
@@ -21,8 +22,9 @@ async function main() {
     process.exit(1);
   }
 
-  const result = await syncLocationLookupsForTenant(tenantId);
+  const result = await syncLocationLookupsForTenant(tenantId, { forScript: true });
   console.log(`Synced ${result.upserted} location lookup rows for tenant ${tenantId}`);
+  await closeUserServiceMongoConnection();
 }
 
 main().catch((err) => {

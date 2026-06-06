@@ -1,6 +1,7 @@
 const { AppError } = require("../errors/AppError");
 const {
   ensureMongoConnected,
+  isMongoConnected,
   resolveMongoUri,
   maskMongoUri,
 } = require("../config/mongo");
@@ -17,6 +18,9 @@ async function requireMongo(req, res, next) {
 
   try {
     await ensureMongoConnected();
+    if (!isMongoConnected()) {
+      throw new Error("MongoDB connection is not ready after reconnect attempt");
+    }
     return next();
   } catch (error) {
     console.error(
