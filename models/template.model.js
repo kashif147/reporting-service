@@ -14,8 +14,7 @@ const TemplateSchema = new mongoose.Schema(
       index: true,
     },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      type: String,
       required: false,
       index: true,
     },

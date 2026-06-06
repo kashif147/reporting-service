@@ -21,6 +21,21 @@ function tenantOrLegacyMatch(tenantId) {
   };
 }
 
+function normalizeUserId(userId) {
+  if (userId == null || userId === "") return userId;
+  return String(userId);
+}
+
+/** Match userId stored as string or legacy ObjectId in MongoDB. */
+function userIdMatch(userId) {
+  const uid = normalizeUserId(userId);
+  if (uid == null || uid === "") return uid;
+  if (mongoose.isValidObjectId(uid)) {
+    return { $in: [uid, new mongoose.Types.ObjectId(uid)] };
+  }
+  return uid;
+}
+
 function toObjectIdOrSelf(id) {
   if (id == null) return id;
   const s = String(id);
@@ -52,9 +67,9 @@ function templateTypeMatchForList(type) {
 }
 
 function clearSisterIsDefaultFlags(userId, templateType, excludeId, tenantId) {
-  const uid = toObjectIdOrSelf(userId);
+  const uid = normalizeUserId(userId);
   const mq = {
-    userId: uid,
+    userId: userIdMatch(uid),
     templateType: templateTypeMatchForList(templateType),
     "meta.deleted": false,
     systemDefault: { $ne: true },
@@ -95,13 +110,14 @@ class GridFilterTemplateService {
       pinned,
     } = templateData;
     const type = String(templateType || "membershiplisting").trim().toLowerCase();
+    const uid = normalizeUserId(userId);
 
     if (isDefault) {
-      await clearSisterIsDefaultFlags(userId, type, null, tenantId);
+      await clearSisterIsDefaultFlags(uid, type, null, tenantId);
     }
 
     const template = new Template({
-      userId,
+      userId: uid,
       tenantId: tenantId || undefined,
       name: name != null && name !== "" ? name : undefined,
       templateType: type,
@@ -117,11 +133,12 @@ class GridFilterTemplateService {
   }
 
   async getUserTemplatesWithSystemDefault(userId, type = "membershiplisting", tenantId = null) {
+    const uid = normalizeUserId(userId);
     const typeFilter = { templateType: templateTypeMatchForList(type) };
     const systemDefault = await findSystemDefaultTemplateDoc(type, tenantId);
 
     const uq = {
-      userId,
+      userId: userIdMatch(uid),
       "meta.deleted": false,
       ...typeFilter,
     };
@@ -139,6 +156,7 @@ class GridFilterTemplateService {
   }
 
   async getTemplateById(templateId, userId, tenantId = null) {
+    const uid = normalizeUserId(userId);
     const systemDefault = await Template.findOne({
       _id: templateId,
       systemDefault: true,
@@ -155,7 +173,7 @@ class GridFilterTemplateService {
       }
       const type = systemDefault.templateType || "membershiplisting";
       const dq = {
-        userId,
+        userId: userIdMatch(uid),
         templateType: templateTypeMatchForList(type),
         isDefault: true,
         "meta.deleted": false,
@@ -167,7 +185,7 @@ class GridFilterTemplateService {
       return out;
     }
 
-    const tq = { _id: templateId, userId, "meta.deleted": false };
+    const tq = { _id: templateId, userId: userIdMatch(uid), "meta.deleted": false };
     Object.assign(tq, tenantOrLegacyMatch(tenantId));
 
     const template = await Template.findOne(tq);
@@ -184,6 +202,7 @@ class GridFilterTemplateService {
     tenantId = null,
     allowSystemDefaultEdits = false,
   ) {
+    const uid = normalizeUserId(userId);
     const {
       name,
       templateType,
@@ -210,7 +229,7 @@ class GridFilterTemplateService {
     }
 
     if (!template) {
-      const tq = { _id: templateId, userId, "meta.deleted": false };
+      const tq = { _id: templateId, userId: userIdMatch(uid), "meta.deleted": false };
       Object.assign(tq, tenantOrLegacyMatch(tenantId));
       template = await Template.findOne(tq);
     }
@@ -226,7 +245,7 @@ class GridFilterTemplateService {
 
     if (template.systemDefault && !allowSystemDefaultEdits) {
       if (isDefault === true) {
-        await clearSisterIsDefaultFlags(userId, type, null, tenantId);
+        await clearSisterIsDefaultFlags(uid, type, null, tenantId);
       }
       if (pinned !== undefined) template.pinned = pinned;
       const saved = await template.save();
@@ -236,7 +255,7 @@ class GridFilterTemplateService {
     }
 
     if (isDefault === true) {
-      await clearSisterIsDefaultFlags(userId, type, template._id, tenantId);
+      await clearSisterIsDefaultFlags(uid, type, template._id, tenantId);
     }
 
     if (name !== undefined) template.name = name !== "" ? name : null;
@@ -252,7 +271,8 @@ class GridFilterTemplateService {
   }
 
   async deleteTemplate(templateId, userId, tenantId = null) {
-    const tq = { _id: templateId, userId, "meta.deleted": false };
+    const uid = normalizeUserId(userId);
+    const tq = { _id: templateId, userId: userIdMatch(uid), "meta.deleted": false };
     Object.assign(tq, tenantOrLegacyMatch(tenantId));
 
     const template = await Template.findOne(tq);
@@ -266,7 +286,8 @@ class GridFilterTemplateService {
   }
 
   async getDefaultTemplate(userId, tenantId = null) {
-    const dq = { userId, isDefault: true, "meta.deleted": false };
+    const uid = normalizeUserId(userId);
+    const dq = { userId: userIdMatch(uid), isDefault: true, "meta.deleted": false };
     Object.assign(dq, tenantOrLegacyMatch(tenantId));
     const doc = await Template.findOne(dq);
     return doc ? toTemplateResponse(doc) : null;

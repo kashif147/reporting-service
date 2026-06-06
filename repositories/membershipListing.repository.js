@@ -29,13 +29,28 @@ const LISTING_COLUMNS = [
   "last_event_type",
 ];
 
+/** On conflict, keep existing profile dimensions when incoming snapshot has nulls. */
+const COALESCE_ON_CONFLICT = new Set([
+  "membership_number",
+  "full_name",
+  "grade",
+  "work_location",
+  "branch",
+  "region",
+  "section",
+]);
+
 async function upsertMembershipListing(row) {
   const values = LISTING_COLUMNS.map((c) => row[c] ?? null);
   const placeholders = LISTING_COLUMNS.map((_, i) => `$${i + 1}`).join(", ");
   const updates = LISTING_COLUMNS.filter(
     (c) => c !== "tenant_id" && c !== "subscription_id"
   )
-    .map((c) => `${c} = EXCLUDED.${c}`)
+    .map((c) =>
+      COALESCE_ON_CONFLICT.has(c)
+        ? `${c} = COALESCE(EXCLUDED.${c}, membership_listing.${c})`
+        : `${c} = EXCLUDED.${c}`
+    )
     .join(", ");
 
   await pool.query(
