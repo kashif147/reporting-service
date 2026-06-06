@@ -93,7 +93,9 @@ Body example:
 }
 ```
 
-Optional filters: `regions`, `branches`, `workLocations`, `grades`, `membershipCategories`, `officials`, `excludeGrades`. Audience scoping: `audienceScope` (`full` | `official` | `manager`) with `scopeUserId` for official/manager views (manager deferred until ADIR hierarchy is configured).
+Optional filters: `regions`, `branches`, `workLocations`, `grades`, `membershipCategories`, `officials`, `excludeGrades`. Audience scoping: `audienceScope` (`full` | `official` | `manager`) with `scopeUserId` — **official** filters to workplaces where the user is IRO; **manager** filters to workplaces where the user is branch officer or region officer (from lookup hierarchy).
+
+Response includes `summary` (org KPIs), `officialSummary` (grouped by IRO), `trendSeries` (org trend, top workplaces, MoM movers), and `period.yoyColumn` metadata. YoY compares the end month to the same calendar month one year prior (YoY snapshot date is fetched even when outside the rolling display window).
 
 Run migration `005_workplace_breakdown.sql` before first use (`npm run migrate` in reporting-service).
 
