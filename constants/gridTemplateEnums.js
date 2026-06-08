@@ -62,10 +62,26 @@ const WORKPLACE_BREAKDOWN_REPORT_TEMPLATE_FILTER_KEYS = Object.keys(
   WORKPLACE_BREAKDOWN_REPORT_FILTER_FIELD_MAP,
 );
 
+const CREDITORS_LIST_REPORT_FILTER_FIELD_MAP = {
+  amount: "amount",
+  search: "search",
+  year: "year",
+  month: "month",
+  dateFrom: "dateFrom",
+  dateTo: "dateTo",
+  periodMode: "periodMode",
+  asOf: "asOf",
+};
+
+const CREDITORS_LIST_REPORT_TEMPLATE_FILTER_KEYS = Object.keys(
+  CREDITORS_LIST_REPORT_FILTER_FIELD_MAP,
+);
+
 const REPORTING_TEMPLATE_TYPES = [
   "membershiplisting",
   "statisticsreport",
   "workplacebreakdownreport",
+  "creditorslistreport",
 ];
 
 module.exports = {
@@ -76,5 +92,7 @@ module.exports = {
   STATISTICS_REPORT_TEMPLATE_FILTER_KEYS,
   WORKPLACE_BREAKDOWN_REPORT_FILTER_FIELD_MAP,
   WORKPLACE_BREAKDOWN_REPORT_TEMPLATE_FILTER_KEYS,
+  CREDITORS_LIST_REPORT_FILTER_FIELD_MAP,
+  CREDITORS_LIST_REPORT_TEMPLATE_FILTER_KEYS,
   REPORTING_TEMPLATE_TYPES,
 };

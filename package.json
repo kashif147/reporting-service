@@ -7,6 +7,8 @@
     "start": "node bin/reporting-service.js",
     "dev": "nodemon bin/reporting-service.js",
     "migrate": "node db/runMigrations.js",
+    "sync:creditors": "node scripts/sync-member-creditors.js",
+    "sync:gl-journals": "node scripts/sync-gl-journal-entries.js",
     "snapshot": "node scripts/buildMonthlySnapshots.js",
     "seed:dashboard": "node scripts/seedMembershipDashboard.js",
     "verify:dashboard": "node scripts/verifyDashboardReadiness.js",

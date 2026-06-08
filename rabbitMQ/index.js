@@ -7,10 +7,14 @@ const {
 } = require("@projectShell/rabbitmq-middleware");
 const { handleMembershipEvent } = require("./listeners/membership.listener");
 const { handleProfileEvent } = require("./listeners/profile.listener");
+const { handleAccountsEvent } = require("./listeners/accounts.listener");
+const { handleJournalEvent } = require("./listeners/journal.listener");
 
 const QUEUES = {
   membership: "reporting.membership.events",
   profile: "reporting.profile.events",
+  accounts: "reporting.accounts.events",
+  journal: "reporting.journal.events",
 };
 
 const MEMBERSHIP_ROUTING_KEYS = [
@@ -80,6 +84,28 @@ async function setupConsumers() {
       },
     ],
     (payload, eventType) => handleProfileEvent(payload, eventType)
+  );
+
+  await setupQueue(
+    QUEUES.accounts,
+    [
+      {
+        exchange: "accounts.events",
+        routingKeys: ["accounts.member.credit.updated.v1"],
+      },
+    ],
+    handleAccountsEvent
+  );
+
+  await setupQueue(
+    QUEUES.journal,
+    [
+      {
+        exchange: "journal.events",
+        routingKeys: ["journal.created.v1"],
+      },
+    ],
+    handleJournalEvent
   );
 }
 

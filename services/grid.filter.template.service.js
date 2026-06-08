@@ -63,6 +63,15 @@ function templateTypeMatchForList(type) {
       ],
     };
   }
+  if (lower === "creditorslistreport") {
+    return {
+      $in: [
+        "creditorslistreport",
+        "CreditorsListReport",
+        "creditorsListReport",
+      ],
+    };
+  }
   return lower;
 }
 
