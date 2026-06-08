@@ -79,6 +79,7 @@ async function upsertGlJournalLines(lines = []) {
 
 /**
  * Creditors (org owes member) as at journal_date <= asOfDate from replicated GL.
+ * Combined net = ar1400 + poa2020 (Irish POA / member-credit liability treatment).
  */
 async function listMemberCreditorsAsOf(tenantId, period = {}) {
   const asOfDate = resolveAsOfDate(period);
@@ -127,10 +128,10 @@ async function listMemberCreditorsAsOf(tenantId, period = {}) {
      )
      SELECT
        member_id,
-       (ar1400 - poa2020)::bigint AS net_cents,
-       CASE WHEN (ar1400 - poa2020) < 0 THEN -(ar1400 - poa2020) ELSE 0 END::bigint AS amount_cents
+       (ar1400 + poa2020)::bigint AS net_cents,
+       CASE WHEN (ar1400 + poa2020) < 0 THEN -(ar1400 + poa2020) ELSE 0 END::bigint AS amount_cents
      FROM member_net
-     WHERE (ar1400 - poa2020) < 0
+     WHERE (ar1400 + poa2020) < 0
      ORDER BY member_id ASC`,
     [tenantId, asOfDate, MEMBER_AR_ACCOUNTS],
   );
