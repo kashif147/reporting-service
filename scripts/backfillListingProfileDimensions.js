@@ -54,6 +54,7 @@ async function main() {
          OR branch IS NULL OR branch = ''
          OR region IS NULL OR region = ''
          OR work_location IS NULL OR work_location = ''
+         OR full_address IS NULL OR full_address = ''
        )
      ORDER BY updated_at DESC`,
     [tenantId]
@@ -76,6 +77,7 @@ async function main() {
     const patch = profileDimensionsPatch(profile);
     const hasData =
       patch.full_name ||
+      patch.full_address ||
       patch.grade ||
       patch.branch ||
       patch.region ||
@@ -96,11 +98,12 @@ async function main() {
         `UPDATE membership_listing SET
            membership_number = COALESCE($3, membership_number),
            full_name = COALESCE($4, full_name),
-           grade = COALESCE($5, grade),
-           branch = COALESCE($6, branch),
-           region = COALESCE($7, region),
-           work_location = COALESCE($8, work_location),
-           section = COALESCE($9, section),
+           full_address = COALESCE($5, full_address),
+           grade = COALESCE($6, grade),
+           branch = COALESCE($7, branch),
+           region = COALESCE($8, region),
+           work_location = COALESCE($9, work_location),
+           section = COALESCE($10, section),
            updated_at = NOW()
          WHERE tenant_id = $1 AND subscription_id = $2`,
         [
@@ -108,6 +111,7 @@ async function main() {
           row.subscription_id,
           patch.membership_number ?? null,
           patch.full_name ?? null,
+          patch.full_address ?? null,
           patch.grade ?? null,
           patch.branch ?? null,
           patch.region ?? null,

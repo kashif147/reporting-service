@@ -187,11 +187,14 @@ async function lookupMemberNamesByMembershipNumbers(tenantId, membershipNumbers)
   const res = await pool.query(
     `SELECT DISTINCT ON (membership_number)
        membership_number,
-       full_name
+       full_name,
+       full_address,
+       grade,
+       work_location
      FROM membership_listing
      WHERE tenant_id = $1
        AND membership_number = ANY($2)
-     ORDER BY membership_number, updated_at DESC NULLS LAST`,
+     ORDER BY membership_number, is_current DESC, updated_at DESC NULLS LAST`,
     [tenantId, ids],
   );
 
@@ -201,6 +204,9 @@ async function lookupMemberNamesByMembershipNumbers(tenantId, membershipNumbers)
     map.set(key, {
       membershipNo: key,
       fullName: row.full_name || null,
+      fullAddress: row.full_address || null,
+      grade: row.grade || null,
+      workLocation: row.work_location || null,
     });
   }
 

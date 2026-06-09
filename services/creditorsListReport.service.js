@@ -16,7 +16,14 @@ function normalizeSearchTerm(search) {
 
 function rowMatchesSearch(row, searchTerm) {
   if (!searchTerm) return true;
-  const haystack = [row.membershipNo, row.fullName, row.memberId]
+  const haystack = [
+    row.membershipNo,
+    row.fullName,
+    row.fullAddress,
+    row.grade,
+    row.workLocation,
+    row.memberId,
+  ]
     .map((v) => String(v || "").toLowerCase())
     .join(" ");
   return haystack.includes(searchTerm);
@@ -66,6 +73,9 @@ async function getCreditorsListReport(tenantId, filters = {}) {
       memberId,
       membershipNo: profile?.membershipNo || memberId || "—",
       fullName: profile?.fullName || "—",
+      fullAddress: profile?.fullAddress || "—",
+      grade: profile?.grade || "—",
+      workLocation: profile?.workLocation || "—",
       amount: centsToEuro(row.amountCents),
     };
   });

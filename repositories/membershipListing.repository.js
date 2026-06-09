@@ -7,6 +7,7 @@ const LISTING_COLUMNS = [
   "profile_id",
   "membership_number",
   "full_name",
+  "full_address",
   "membership_status",
   "membership_movement",
   "start_date",
@@ -33,6 +34,7 @@ const LISTING_COLUMNS = [
 const COALESCE_ON_CONFLICT = new Set([
   "membership_number",
   "full_name",
+  "full_address",
   "grade",
   "work_location",
   "branch",
