@@ -1,5 +1,5 @@
 const {
-  listMemberCreditorsAsOf,
+  listMemberDebtorsAsOf,
 } = require("../repositories/glJournalEntry.repository");
 const {
   lookupMemberNamesByMembershipNumbers,
@@ -29,7 +29,7 @@ function rowMatchesSearch(row, searchTerm) {
   return haystack.includes(searchTerm);
 }
 
-function normalizeCreditorsPeriodFilters(filters = {}) {
+function normalizeDebtorsPeriodFilters(filters = {}) {
   const {
     periodMode,
     year,
@@ -63,9 +63,9 @@ function normalizeCreditorsPeriodFilters(filters = {}) {
 }
 
 /**
- * Creditors list as at reporting date — balances from reporting_db.gl_journal_entry.
+ * Debtors list as at reporting date — balances from reporting_db.gl_journal_entry.
  */
-async function getCreditorsListReport(tenantId, filters = {}) {
+async function getDebtorsListReport(tenantId, filters = {}) {
   const {
     offset = 0,
     limit = 5000,
@@ -80,7 +80,7 @@ async function getCreditorsListReport(tenantId, filters = {}) {
 
   let period;
   try {
-    period = normalizeCreditorsPeriodFilters(filters);
+    period = normalizeDebtorsPeriodFilters(filters);
   } catch (err) {
     const error = new Error(err.message || "Invalid reporting period");
     error.statusCode = 400;
@@ -89,7 +89,7 @@ async function getCreditorsListReport(tenantId, filters = {}) {
 
   let asOfResult;
   try {
-    asOfResult = await listMemberCreditorsAsOf(tenantId, period);
+    asOfResult = await listMemberDebtorsAsOf(tenantId, period);
   } catch (err) {
     const message = err.message || "Invalid reporting period";
     const error = new Error(message);
@@ -105,7 +105,7 @@ async function getCreditorsListReport(tenantId, filters = {}) {
     const memberId = String(row.memberId || "").trim();
     const profile = nameMap.get(memberId);
     return {
-      id: memberId || `creditor-${index}`,
+      id: memberId || `debtor-${index}`,
       memberId,
       membershipNo: profile?.membershipNo || memberId || "—",
       fullName: profile?.fullName || "—",
@@ -113,6 +113,11 @@ async function getCreditorsListReport(tenantId, filters = {}) {
       grade: profile?.grade || "—",
       workLocation: profile?.workLocation || "—",
       amount: centsToEuro(row.amountCents),
+      current: centsToEuro(row.aging?.current),
+      days30: centsToEuro(row.aging?.days30),
+      days60: centsToEuro(row.aging?.days60),
+      days90: centsToEuro(row.aging?.days90),
+      over90: centsToEuro(row.aging?.over90),
     };
   });
 
@@ -142,5 +147,5 @@ async function getCreditorsListReport(tenantId, filters = {}) {
 }
 
 module.exports = {
-  getCreditorsListReport,
+  getDebtorsListReport,
 };

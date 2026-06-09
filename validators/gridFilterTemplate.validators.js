@@ -5,6 +5,7 @@ const {
   STATISTICS_REPORT_TEMPLATE_FILTER_KEYS,
   WORKPLACE_BREAKDOWN_REPORT_TEMPLATE_FILTER_KEYS,
   CREDITORS_LIST_REPORT_TEMPLATE_FILTER_KEYS,
+  DEBTORS_LIST_REPORT_TEMPLATE_FILTER_KEYS,
   REPORTING_TEMPLATE_TYPES,
 } = require("../constants/gridTemplateEnums");
 
@@ -30,6 +31,9 @@ function allowedKeysForType(type) {
   }
   if (type === "creditorslistreport") {
     return CREDITORS_LIST_REPORT_TEMPLATE_FILTER_KEYS;
+  }
+  if (type === "debtorslistreport") {
+    return DEBTORS_LIST_REPORT_TEMPLATE_FILTER_KEYS;
   }
   return null;
 }

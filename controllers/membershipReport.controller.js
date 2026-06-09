@@ -13,6 +13,9 @@ const {
 const {
   getCreditorsListReport,
 } = require("../services/creditorsListReport.service");
+const {
+  getDebtorsListReport,
+} = require("../services/debtorsListReport.service");
 const { buildSnapshotAndMetrics } = require("../services/snapshotBuild.service");
 
 exports.getPresetReport = async (req, res, next) => {
@@ -143,6 +146,24 @@ exports.getCreditorsList = async (req, res, next) => {
       });
     }
     const data = await getCreditorsListReport(tenantId, req.body || {}, req);
+    res.json({ status: "success", data });
+  } catch (err) {
+    if (err.statusCode === 400) {
+      return res.status(400).json({ error: { message: err.message } });
+    }
+    next(err);
+  }
+};
+
+exports.getDebtorsList = async (req, res, next) => {
+  try {
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({
+        error: { message: "Tenant required", code: "TENANT_REQUIRED" },
+      });
+    }
+    const data = await getDebtorsListReport(tenantId, req.body || {}, req);
     res.json({ status: "success", data });
   } catch (err) {
     if (err.statusCode === 400) {

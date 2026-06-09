@@ -50,6 +50,12 @@ router.post(
 );
 
 router.post(
+  "/debtors-list",
+  defaultPolicyMiddleware.requirePermission("reporting", "read"),
+  membershipReportController.getDebtorsList
+);
+
+router.post(
   "/year-reconciliation",
   defaultPolicyMiddleware.requirePermission("reporting", "read"),
   membershipReportController.getYearReconciliation
