@@ -36,6 +36,10 @@ const TemplateSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    visibleFilters: {
+      type: [String],
+      default: [],
+    },
     isDefault: {
       type: Boolean,
       default: false,

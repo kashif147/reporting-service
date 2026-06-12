@@ -124,6 +124,7 @@ class GridFilterTemplateService {
       filters,
       columns,
       columnLabels,
+      visibleFilters,
       isDefault,
       pinned,
     } = templateData;
@@ -142,6 +143,7 @@ class GridFilterTemplateService {
       filters: filters || {},
       columns: columns || [],
       columnLabels: columnLabels || {},
+      visibleFilters: Array.isArray(visibleFilters) ? visibleFilters : [],
       isDefault: isDefault || false,
       pinned: pinned || false,
     });
@@ -227,6 +229,7 @@ class GridFilterTemplateService {
       filters,
       columns,
       columnLabels,
+      visibleFilters,
       isDefault,
       pinned,
     } = updateData;
@@ -281,6 +284,11 @@ class GridFilterTemplateService {
     if (filters !== undefined) template.filters = filters;
     if (columns !== undefined) template.columns = columns;
     if (columnLabels !== undefined) template.columnLabels = columnLabels;
+    if (visibleFilters !== undefined) {
+      template.visibleFilters = Array.isArray(visibleFilters)
+        ? visibleFilters
+        : [];
+    }
     if (isDefault !== undefined) template.isDefault = isDefault;
     if (pinned !== undefined) template.pinned = pinned;
 

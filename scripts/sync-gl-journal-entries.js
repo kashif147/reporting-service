@@ -5,6 +5,7 @@
  *   TENANT_ID=... node scripts/sync-gl-journal-entries.js
  *   TENANT_ID=... ACCOUNT_SERVICE_URL=http://localhost/account-service node scripts/sync-gl-journal-entries.js
  */
+require("dotenv").config({ path: ".env.staging" });
 require("dotenv").config();
 const axios = require("axios");
 const { pool } = require("../db/postgres");
@@ -15,6 +16,7 @@ const ACCOUNT_SERVICE_URL =
   process.env.ACCOUNT_SERVICE_URL ||
   "http://projectshell-vm.northeurope.cloudapp.azure.com/account-service";
 const AUTH_TOKEN = process.env.SYNC_AUTH_TOKEN || process.env.INTERNAL_AUTH_TOKEN;
+const ACCOUNTS_API_KEY = process.env.ACCOUNTS_API_KEY || "";
 
 async function fetchReplicationPage(cursor) {
   const base = ACCOUNT_SERVICE_URL.replace(/\/$/, "");
@@ -22,8 +24,11 @@ async function fetchReplicationPage(cursor) {
     "Content-Type": "application/json",
     "x-tenant-id": TENANT_ID,
     "x-internal-request": "true",
+    "x-jwt-verified": "true",
+    "x-auth-source": "gateway",
   };
   if (AUTH_TOKEN) headers.Authorization = `Bearer ${AUTH_TOKEN}`;
+  if (ACCOUNTS_API_KEY) headers["x-api-key"] = ACCOUNTS_API_KEY;
 
   const response = await axios.post(
     `${base}/api/reports/gl-journal-replication`,

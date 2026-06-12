@@ -54,6 +54,14 @@ function validateFiltersForType(templateType, filters = {}) {
   }
 }
 
+function resolveVisibleFilters(body = {}) {
+  if (Array.isArray(body.visibleFilters)) return body.visibleFilters;
+  if (Array.isArray(body.meta?.visibleToolbarFilters)) {
+    return body.meta.visibleToolbarFilters;
+  }
+  return [];
+}
+
 function validateCreateGridTemplate(body = {}) {
   const templateType = String(body.templateType || "membershiplisting").trim();
   const normalizedType = templateType.toLowerCase();
@@ -80,6 +88,7 @@ function validateCreateGridTemplate(body = {}) {
       body.columnLabels && typeof body.columnLabels === "object"
         ? body.columnLabels
         : {},
+    visibleFilters: resolveVisibleFilters(body),
     isDefault: Boolean(body.isDefault),
     pinned: Boolean(body.pinned),
   };
@@ -113,6 +122,12 @@ function validateUpdateGridTemplate(body = {}) {
   }
   if (body.columnLabels !== undefined) {
     out.columnLabels = body.columnLabels;
+  }
+  if (
+    body.visibleFilters !== undefined ||
+    body.meta?.visibleToolbarFilters !== undefined
+  ) {
+    out.visibleFilters = resolveVisibleFilters(body);
   }
   if (body.isDefault !== undefined) {
     out.isDefault = Boolean(body.isDefault);
