@@ -8,14 +8,19 @@ const {
 } = require("@membership/policy-middleware");
 
 const policyServiceUrl =
-  process.env.POLICY_SERVICE_URL || "http://localhost:3000";
+  process.env.POLICY_SERVICE_URL || "http://user-service:5001";
+const policyTimeout = Number(process.env.POLICY_TIMEOUT || 5000);
+const policyRetries = Number(process.env.POLICY_RETRIES || 2);
+const policyCacheTimeout = Number(
+  process.env.POLICY_CACHE_TIMEOUT || process.env.POLICY_CACHE_TTL || 300000
+);
+const policyRetryDelay = Number(process.env.POLICY_RETRY_DELAY || 1000);
 
 // Warn if using default localhost URL in non-development environments
 if (!process.env.POLICY_SERVICE_URL && process.env.NODE_ENV !== "development") {
   console.warn(
-    "⚠️  WARNING: POLICY_SERVICE_URL not set. Using default localhost URL.",
-    "This will cause policy evaluation to fail in Azure/staging environments.",
-    "Please set POLICY_SERVICE_URL in your Azure App Service Application Settings."
+    "⚠️  WARNING: POLICY_SERVICE_URL not set. Using Docker service default.",
+    "Set POLICY_SERVICE_URL in .env.staging for explicit staging configuration."
   );
 } else {
   console.log(`✅ Policy service URL configured: ${policyServiceUrl}`);
@@ -25,13 +30,12 @@ if (!process.env.POLICY_SERVICE_URL && process.env.NODE_ENV !== "development") {
 const defaultPolicyMiddleware = createDefaultPolicyMiddleware(
   policyServiceUrl,
   {
-    timeout: 15000, // Increased timeout for Azure
-    retries: 5, // More retries for Azure
-    cacheTimeout: 300000, // 5 minutes
-    retryDelay: 2000, // Base delay between retries
+    timeout: policyTimeout,
+    retries: policyRetries,
+    cacheTimeout: policyCacheTimeout,
+    retryDelay: policyRetryDelay,
   }
 );
 
 module.exports = defaultPolicyMiddleware;
 module.exports.defaultPolicyMiddleware = defaultPolicyMiddleware;
-

@@ -4,6 +4,7 @@ services:
     container_name: reporting-postgres
     restart: always
     env_file:
+      - ${ENV_COMMON_PATH:-../../config/.env.common}
       - .env.staging
     ports:
       - "5432:5432"
