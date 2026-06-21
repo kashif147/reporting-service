@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS reports.membership_listing (
   PRIMARY KEY (tenant_id, subscription_id)
 );
 
+-- Keep this baseline migration safe for existing databases. CREATE TABLE IF NOT EXISTS
+-- does not add columns when reports.membership_listing already exists, but this file
+-- still creates indexes on newer listing columns below.
+ALTER TABLE reports.membership_listing
+  ADD COLUMN IF NOT EXISTS previous_subscription_id TEXT,
+  ADD COLUMN IF NOT EXISTS previous_membership_status TEXT,
+  ADD COLUMN IF NOT EXISTS movement_resolved_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS renewal_batch_id TEXT,
+  ADD COLUMN IF NOT EXISTS year_end_fiscal_year INTEGER,
+  ADD COLUMN IF NOT EXISTS year_end_action TEXT,
+  ADD COLUMN IF NOT EXISTS new_membership_status TEXT,
+  ADD COLUMN IF NOT EXISTS snapshot_as_of_date DATE;
+
 CREATE INDEX IF NOT EXISTS idx_membership_listing_tenant_status
   ON reports.membership_listing (tenant_id, membership_status);
 

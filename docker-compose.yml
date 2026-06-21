@@ -4,7 +4,6 @@ services:
     container_name: reporting-postgres
     restart: always
     env_file:
-      - /home/deploy/config/.env.common
       - .env.staging
     ports:
       - "5432:5432"
@@ -35,7 +34,6 @@ services:
       reporting-postgres:
         condition: service_healthy
     env_file:
-      - ${ENV_COMMON_PATH:-../../config/.env.common}
       - .env.staging
     environment:
       RUN_REPORTING_MIGRATIONS: "true"

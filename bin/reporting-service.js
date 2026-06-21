@@ -30,7 +30,16 @@ async function start() {
   console.log(`MongoDB URI: ${maskMongoUri(mongoUri)}`);
 
   if (mongoUri) {
-    await connectMongo();
+    try {
+      await connectMongo();
+    } catch (error) {
+      if (process.env.REQUIRE_REPORTING_MONGO === "true") {
+        throw error;
+      }
+      console.warn(
+        "⚠️ Reporting-service MongoDB unavailable — grid template Save View disabled; reporting APIs will continue",
+      );
+    }
   } else {
     console.warn(
       "⚠️ MONGO_URI not set — grid template Save View disabled for reporting-service",
