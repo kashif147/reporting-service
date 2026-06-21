@@ -26,6 +26,14 @@ const LISTING_COLUMNS = [
   "subscription_year",
   "is_current",
   "member_segment",
+  "previous_subscription_id",
+  "previous_membership_status",
+  "movement_resolved_at",
+  "renewal_batch_id",
+  "year_end_fiscal_year",
+  "year_end_action",
+  "new_membership_status",
+  "snapshot_as_of_date",
   "last_event_id",
   "last_event_type",
 ];
@@ -111,8 +119,16 @@ const MOVEMENT_ALIASES = {
   "re-joiners": "Rejoin",
   rejoin: "Rejoin",
   "re-joiner": "Rejoin",
+  "rejoin - cancelled": "Rejoin - Cancelled",
+  "rejoined - cancelled": "Rejoin - Cancelled",
+  "rejoin - resigned": "Rejoin - Resigned",
+  "rejoined - resigned": "Rejoin - Resigned",
   "re-instated": "Reinstate",
   reinstate: "Reinstate",
+  "reinstate - suspended": "Reinstate - Suspended",
+  "reinstated - suspended": "Reinstate - Suspended",
+  "reinstate - archived": "Reinstate - Archived",
+  "reinstated - archived": "Reinstate - Archived",
   renewed: "Renewed",
 };
 
@@ -239,6 +255,14 @@ async function queryMembershipListing(tenantId, filters = {}) {
        payment_frequency AS "paymentFrequency",
        subscription_year AS "subscriptionYear",
        is_current AS "isCurrent",
+       previous_subscription_id AS "previousSubscriptionId",
+       previous_membership_status AS "previousMembershipStatus",
+       movement_resolved_at AS "movementResolvedAt",
+       renewal_batch_id AS "renewalBatchId",
+       year_end_fiscal_year AS "yearEndFiscalYear",
+       year_end_action AS "yearEndAction",
+       new_membership_status AS "newMembershipStatus",
+       snapshot_as_of_date AS "snapshotAsOfDate",
        updated_at AS "updatedAt"
      FROM membership_listing
      WHERE ${whereSql}

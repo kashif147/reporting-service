@@ -18,11 +18,11 @@ const MOVEMENT_COUNT_SQL = `
       AND start_date >= $MONTH_START::date AND start_date <= $AS_OF_DAY::date
   )::int AS new_join,
   COUNT(*) FILTER (
-    WHERE membership_movement = 'Rejoin'
+    WHERE membership_movement LIKE 'Rejoin%'
       AND start_date >= $MONTH_START::date AND start_date <= $AS_OF_DAY::date
   )::int AS rejoin,
   COUNT(*) FILTER (
-    WHERE membership_movement = 'Reinstate'
+    WHERE membership_movement LIKE 'Reinstate%'
       AND start_date >= $MONTH_START::date AND start_date <= $AS_OF_DAY::date
   )::int AS reinstate,
   COUNT(*) FILTER (

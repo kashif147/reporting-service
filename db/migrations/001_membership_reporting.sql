@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS reports.membership_listing (
   payment_frequency     TEXT,
   subscription_year     INTEGER,
   is_current            BOOLEAN NOT NULL DEFAULT false,
+  previous_subscription_id TEXT,
+  previous_membership_status TEXT,
+  movement_resolved_at  TIMESTAMPTZ,
+  renewal_batch_id      TEXT,
+  year_end_fiscal_year  INTEGER,
+  year_end_action       TEXT,
+  new_membership_status TEXT,
+  snapshot_as_of_date   DATE,
   last_event_id         TEXT,
   last_event_type       TEXT,
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -86,3 +94,11 @@ CREATE INDEX IF NOT EXISTS idx_membership_listing_processed_at
 
 CREATE INDEX IF NOT EXISTS idx_membership_listing_profile
   ON reports.membership_listing (tenant_id, profile_id);
+
+CREATE INDEX IF NOT EXISTS idx_membership_listing_renewal_batch
+  ON reports.membership_listing (tenant_id, renewal_batch_id)
+  WHERE renewal_batch_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_membership_listing_year_end_action
+  ON reports.membership_listing (tenant_id, year_end_fiscal_year, year_end_action)
+  WHERE year_end_fiscal_year IS NOT NULL;

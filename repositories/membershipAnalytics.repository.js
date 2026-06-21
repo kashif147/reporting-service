@@ -66,7 +66,7 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
           WHERE resigned_at >= $5::timestamptz AND resigned_at < $6::timestamptz
         ),
         COUNT(*) FILTER (
-          WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+          WHERE (membership_movement = 'NewJoin' OR membership_movement LIKE 'Rejoin%' OR membership_movement LIKE 'Reinstate%')
             AND start_date >= $7::date AND start_date <= $8::date
         ),
         COUNT(*) FILTER (
@@ -78,11 +78,11 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
             AND start_date >= $7::date AND start_date <= $8::date
         ),
         COUNT(*) FILTER (
-          WHERE membership_movement = 'Rejoin'
+          WHERE membership_movement LIKE 'Rejoin%'
             AND start_date >= $7::date AND start_date <= $8::date
         ),
         COUNT(*) FILTER (
-          WHERE membership_movement = 'Reinstate'
+          WHERE membership_movement LIKE 'Reinstate%'
             AND start_date >= $7::date AND start_date <= $8::date
         )
       FROM membership_period_snapshot
@@ -99,7 +99,7 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'student')::int AS student_active,
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'honorary')::int AS honorary_active,
       COUNT(*) FILTER (
-        WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+        WHERE (membership_movement = 'NewJoin' OR membership_movement LIKE 'Rejoin%' OR membership_movement LIKE 'Reinstate%')
           AND start_date >= $3::date AND start_date <= $4::date
       )::int AS joiners,
       COUNT(*) FILTER (
@@ -117,11 +117,11 @@ async function computeAndStoreMonthlyMetrics(tenantId, year, month) {
           AND start_date >= $3::date AND start_date <= $4::date
       )::int AS new_join_in_month,
       COUNT(*) FILTER (
-        WHERE membership_movement = 'Rejoin'
+        WHERE membership_movement LIKE 'Rejoin%'
           AND start_date >= $3::date AND start_date <= $4::date
       )::int AS rejoin_in_month,
       COUNT(*) FILTER (
-        WHERE membership_movement = 'Reinstate'
+        WHERE membership_movement LIKE 'Reinstate%'
           AND start_date >= $3::date AND start_date <= $4::date
       )::int AS reinstate_in_month
     FROM membership_period_snapshot
@@ -249,7 +249,7 @@ async function getMonthMovementKpiFromSnapshot(
   const { rows } = await pool.query(
     `SELECT
       COUNT(*) FILTER (
-        WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+        WHERE (membership_movement = 'NewJoin' OR membership_movement LIKE 'Rejoin%' OR membership_movement LIKE 'Reinstate%')
           AND start_date >= $${pMonthStart}::date AND start_date <= $${pAsOf}::date
       )::int AS joiners,
       COUNT(*) FILTER (

@@ -91,7 +91,7 @@ async function sumYtdReinstateSplitByColumn(
   const yearStart = `${year}-01-01`;
   const where = [
     "tenant_id = $1",
-    "membership_movement = 'Reinstate'",
+    "membership_movement LIKE 'Reinstate%'",
     "start_date IS NOT NULL",
   ];
   const params = [tenantId];

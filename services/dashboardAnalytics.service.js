@@ -116,7 +116,7 @@ async function countMtdFromListing(
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'student')::int AS "studentActive",
       COUNT(*) FILTER (WHERE membership_status = 'Active' AND member_segment = 'honorary')::int AS "honoraryActive",
       COUNT(*) FILTER (
-        WHERE membership_movement IN ('NewJoin', 'Rejoin', 'Reinstate')
+        WHERE (membership_movement = 'NewJoin' OR membership_movement LIKE 'Rejoin%' OR membership_movement LIKE 'Reinstate%')
           AND start_date >= $${pMonthStart}::date AND start_date <= $${pToday}::date
       )::int AS joiners,
       COUNT(*) FILTER (
