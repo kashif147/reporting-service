@@ -26,6 +26,20 @@ function normalizeUserId(userId) {
   return String(userId);
 }
 
+function normalizeTenantId(tenantId) {
+  if (tenantId == null) return null;
+  const tid = String(tenantId).trim();
+  return tid || null;
+}
+
+function requireTenantId(tenantId) {
+  const tid = normalizeTenantId(tenantId);
+  if (!tid) {
+    throw AppError.badRequest("Tenant context required for reporting templates");
+  }
+  return tid;
+}
+
 /** Match userId stored as string or legacy ObjectId in MongoDB. */
 function userIdMatch(userId) {
   const uid = normalizeUserId(userId);
@@ -130,14 +144,15 @@ class GridFilterTemplateService {
     } = templateData;
     const type = String(templateType || "membershiplisting").trim().toLowerCase();
     const uid = normalizeUserId(userId);
+    const tid = requireTenantId(tenantId);
 
     if (isDefault) {
-      await clearSisterIsDefaultFlags(uid, type, null, tenantId);
+      await clearSisterIsDefaultFlags(uid, type, null, tid);
     }
 
     const template = new Template({
       userId: uid,
-      tenantId: tenantId || undefined,
+      tenantId: tid,
       name: name != null && name !== "" ? name : undefined,
       templateType: type,
       filters: filters || {},
@@ -223,6 +238,7 @@ class GridFilterTemplateService {
     allowSystemDefaultEdits = false,
   ) {
     const uid = normalizeUserId(userId);
+    const tid = requireTenantId(tenantId);
     const {
       name,
       templateType,
@@ -242,16 +258,15 @@ class GridFilterTemplateService {
 
     if (
       template &&
-      tenantId &&
       template.tenantId &&
-      String(template.tenantId) !== String(tenantId)
+      String(template.tenantId) !== String(tid)
     ) {
       template = null;
     }
 
     if (!template) {
       const tq = { _id: templateId, userId: userIdMatch(uid), "meta.deleted": false };
-      Object.assign(tq, tenantOrLegacyMatch(tenantId));
+      Object.assign(tq, tenantOrLegacyMatch(tid));
       template = await Template.findOne(tq);
     }
 
@@ -266,7 +281,7 @@ class GridFilterTemplateService {
 
     if (template.systemDefault && !allowSystemDefaultEdits) {
       if (isDefault === true) {
-        await clearSisterIsDefaultFlags(uid, type, null, tenantId);
+        await clearSisterIsDefaultFlags(uid, type, null, tid);
       }
       if (pinned !== undefined) template.pinned = pinned;
       const saved = await template.save();
@@ -276,7 +291,7 @@ class GridFilterTemplateService {
     }
 
     if (isDefault === true) {
-      await clearSisterIsDefaultFlags(uid, type, template._id, tenantId);
+      await clearSisterIsDefaultFlags(uid, type, template._id, tid);
     }
 
     if (name !== undefined) template.name = name !== "" ? name : null;
@@ -291,6 +306,7 @@ class GridFilterTemplateService {
     }
     if (isDefault !== undefined) template.isDefault = isDefault;
     if (pinned !== undefined) template.pinned = pinned;
+    if (!template.systemDefault) template.tenantId = tid;
 
     const saved = await template.save();
     return toTemplateResponse(saved);
@@ -298,14 +314,16 @@ class GridFilterTemplateService {
 
   async deleteTemplate(templateId, userId, tenantId = null) {
     const uid = normalizeUserId(userId);
+    const tid = requireTenantId(tenantId);
     const tq = { _id: templateId, userId: userIdMatch(uid), "meta.deleted": false };
-    Object.assign(tq, tenantOrLegacyMatch(tenantId));
+    Object.assign(tq, tenantOrLegacyMatch(tid));
 
     const template = await Template.findOne(tq);
     if (!template) {
       throw AppError.notFound("Filter template not found");
     }
 
+    if (!template.systemDefault) template.tenantId = tid;
     template.meta.deleted = true;
     template.meta.deletedAt = new Date();
     return template.save();

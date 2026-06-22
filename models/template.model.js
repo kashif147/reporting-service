@@ -22,6 +22,9 @@ const TemplateSchema = new mongoose.Schema(
       type: String,
       default: null,
       trim: true,
+      required: function requiredForUserTemplate() {
+        return !this.systemDefault;
+      },
       index: true,
     },
     filters: {
