@@ -37,6 +37,7 @@ services:
     env_file:
       - .env.staging
     environment:
+      LOG_ROOT: /var/log/projectshell
       RUN_REPORTING_MIGRATIONS: "true"
       ENABLE_REPORTING_CRON: "true"
       GATEWAY_HANDLES_CORS: "true"
