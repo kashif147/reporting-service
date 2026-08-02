@@ -9,13 +9,17 @@ const { handleMembershipEvent } = require("./listeners/membership.listener");
 const { handleProfileEvent } = require("./listeners/profile.listener");
 const { handleAccountsEvent } = require("./listeners/accounts.listener");
 const { handleJournalEvent } = require("./listeners/journal.listener");
+const { handleIssuesEvent } = require("./listeners/issues.listener");
 
 const QUEUES = {
   membership: "reporting.membership.events",
   profile: "reporting.profile.events",
   accounts: "reporting.accounts.events",
   journal: "reporting.journal.events",
+  issues: "reporting.issues.events",
 };
+
+const ISSUES_ROUTING_KEYS = ["issues.issue.reporting.snapshot.v1"];
 
 const MEMBERSHIP_ROUTING_KEYS = [
   "members.subscription.reporting.snapshot.v1",
@@ -38,6 +42,11 @@ async function initEventSystem() {
     prefetch: 10,
     connectionName: "reporting-service",
     serviceName: "reporting-service",
+    // issues.events isn't in the middleware's default exchange list (unlike
+    // membership.events/profile.events/accounts.events) - assert it explicitly so this
+    // service's own bindQueue call doesn't race issue-service's first startup for it,
+    // mirroring audit-service's rabbitMQ/index.js pattern for the same exchange.
+    exchanges: [{ name: "issues.events", type: "topic", options: { durable: true } }],
   });
   console.log("✅ Reporting-service RabbitMQ initialised");
 }
@@ -106,6 +115,12 @@ async function setupConsumers() {
       },
     ],
     handleJournalEvent
+  );
+
+  await setupQueue(
+    QUEUES.issues,
+    [{ exchange: "issues.events", routingKeys: ISSUES_ROUTING_KEYS }],
+    handleIssuesEvent
   );
 }
 
