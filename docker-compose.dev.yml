@@ -1,0 +1,38 @@
+name: dev-reporting-service
+
+services:
+  reporting-service:
+    container_name: dev-reporting-service
+    build: .
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    expose:
+      - "4005"
+
+    volumes:
+      - ../../logs:/var/log/projectshell
+
+    restart: always
+
+    env_file:
+      - ${ENV_COMMON_PATH:-../../config/.env.common}
+      - .env.staging
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    networks:
+      - gateway_dev-net
+
+networks:
+  gateway_dev-net:
+    external: true
