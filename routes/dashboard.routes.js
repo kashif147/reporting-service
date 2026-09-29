@@ -1,11 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const dashboardController = require("../controllers/dashboard.controller");
-const { authenticate, requireTenant } = require("../middlewares/auth");
+const { authenticate, requireTenant, tenantContextWarn } = require("../middlewares/auth");
 const { defaultPolicyMiddleware } = require("../middlewares/policy.middleware");
 
 // Apply authentication and tenant validation to all routes
-router.use(authenticate);
+router.use(authenticate, tenantContextWarn);
 router.use(requireTenant);
 
 // All dashboard routes require reporting:read permission

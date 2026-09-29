@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const membershipReportController = require("../controllers/membershipReport.controller");
-const { authenticate, requireTenant } = require("../middlewares/auth");
+const { authenticate, requireTenant, tenantContextWarn } = require("../middlewares/auth");
 const { defaultPolicyMiddleware } = require("../middlewares/policy.middleware");
 
-router.use(authenticate);
+router.use(authenticate, tenantContextWarn);
 router.use(requireTenant);
 
 router.post(

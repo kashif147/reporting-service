@@ -1,4 +1,22 @@
 const { validateGatewayRequest } = require("@membership/policy-middleware/security");
+const { tenantContextMiddleware } = require("@membership/policy-middleware");
+
+/**
+ * Phase 1A canonical tenant-context guard — WARN MODE ONLY (non-blocking).
+ *
+ * Mounted AFTER `authenticate` (before `requireTenant`) on the reporting routers.
+ * It observes the tenant already established on req.ctx/req.user/req.tenantId,
+ * re-pins req.tenantId to that trusted tenant, and LOGS any caller-supplied
+ * (body/query/params) tenantId that disagrees as a non-blocking
+ * TenantContextMismatch event — it never returns 403.
+ *
+ * ENFORCE BLOCKER (do NOT fix here): `authenticate`'s legacy Bearer fallback
+ * uses `jwt.decode()` WITHOUT signature verification, so req.tenantId on that
+ * path is NOT cryptographically trusted. WARN adoption is safe because it is
+ * non-blocking, but this fallback MUST be fixed (verify or remove) before this
+ * service is switched to enforce mode. See parked item R1.
+ */
+const tenantContextWarn = tenantContextMiddleware({ mode: "warn" });
 
 /**
  * AUTHENTICATION MIDDLEWARE ONLY
@@ -207,5 +225,6 @@ module.exports = {
   authenticate,
   ensureAuthenticated: authenticate, // Alias for backward compatibility
   requireTenant,
+  tenantContextWarn, // Phase 1A WARN guard; pair as router.use(authenticate, tenantContextWarn)
 };
 
