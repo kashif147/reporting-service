@@ -2,20 +2,22 @@
 /**
  * Seed membership_listing using user-service lookup/product data, then rebuild snapshots.
  *
+ * Lookups/products are read from user-service's HTTP API with an operator JWT
+ * (OPERATOR_BEARER_TOKEN, verified against JWT_SECRET; tenant comes from the token and
+ * TENANT_ID, if set, must match). No user-service MongoDB access.
+ *
  * Usage:
- *   MONGO_URI=<user-service-db> TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js
- *   TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js --clear --count=850
+ *   OPERATOR_BEARER_TOKEN=<CRM JWT> node scripts/seedMembershipDashboard.js
+ *   OPERATOR_BEARER_TOKEN=<CRM JWT> node scripts/seedMembershipDashboard.js --clear --count=850
+ *   SEED_LOOKUPS_FIXTURE_ONLY=true TENANT_ID=<tenant> node scripts/seedMembershipDashboard.js
  *
  * Docker:
- *   docker compose exec -e MONGO_URI="$MONGO_URI" reporting-service node scripts/seedMembershipDashboard.js --clear
+ *   docker compose exec -e OPERATOR_BEARER_TOKEN="$TOKEN" reporting-service node scripts/seedMembershipDashboard.js --clear
  */
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env.staging") });
 require("dotenv").config({
   path: path.join(__dirname, "..", "..", "..", "config", ".env.common"),
-});
-require("dotenv").config({
-  path: path.join(__dirname, "..", "..", "user-service", ".env.staging"),
 });
 
 const { pool } = require("../db/postgres");

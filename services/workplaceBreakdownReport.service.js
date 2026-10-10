@@ -16,7 +16,10 @@ const {
   getLocationLookupMap,
   getLocationLookupCount,
 } = require("../repositories/locationLookup.repository");
-const { syncLocationLookupsForTenant } = require("./locationLookupSync.service");
+const {
+  syncLocationLookupsForRequest,
+  trustedTenantOf,
+} = require("./locationLookupSync.service");
 const { ensurePeriodSnapshot } = require("./snapshotBuild.service");
 const { hasPeriodSnapshot } = require("../repositories/membershipSnapshot.repository");
 
@@ -284,26 +287,38 @@ function buildTrendSeries(rows, periodColumns, endYear, endMonth) {
   };
 }
 
-async function getWorkplaceBreakdownReport(tenantId, body = {}) {
+/**
+ * @param {string} tenantId trusted tenant (req.tenantId)
+ * @param {object} body report options
+ * @param {object} req authenticated request — its identity is forwarded to user-service
+ *   for the lookup sync; the sync writes only under the request's trusted tenant.
+ */
+async function getWorkplaceBreakdownReport(tenantId, body = {}, req = null) {
   const opts = normalizeRequest(body);
   const notes = [];
 
   try {
+    const syncTenant = trustedTenantOf(req);
+    if (!syncTenant || syncTenant !== String(tenantId)) {
+      throw new Error("lookup sync requires the caller's trusted tenant");
+    }
     if (opts.syncLookups) {
-      await syncLocationLookupsForTenant(tenantId);
+      await syncLocationLookupsForRequest(req);
     } else {
       const lookupCount = await getLocationLookupCount(tenantId);
       if (lookupCount === 0) {
-        await syncLocationLookupsForTenant(tenantId);
+        await syncLocationLookupsForRequest(req);
       }
     }
   } catch (syncError) {
     console.error(
       "[workplaceBreakdown] location lookup sync failed:",
-      syncError.message,
+      syncError.upstreamStatus
+        ? `user-service status ${syncError.upstreamStatus}`
+        : syncError.message,
     );
     notes.push(
-      "Work location officer lookup sync failed — official initials may be incomplete. Set USER_SERVICE_MONGO_URI on reporting-service or run scripts/sync-location-lookups.js.",
+      "Work location officer lookup sync failed — official initials may be incomplete. Check that user-service is reachable from reporting-service and that your role has lookup:read.",
     );
   }
 

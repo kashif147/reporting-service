@@ -24,13 +24,14 @@ npm start                    # node bin/reporting-service.js
 npm run dev                   # nodemon
 npm run migrate                # db/runMigrations.js — runs db/migrations/*.sql in order
 npm run snapshot -- <year> <month>   # scripts/buildMonthlySnapshots.js
-npm run seed:dashboard          # scripts/seedMembershipDashboard.js (needs TENANT_ID + user-service MONGO_URI)
+npm run seed:dashboard          # scripts/seedMembershipDashboard.js (needs OPERATOR_BEARER_TOKEN; reads user-service over HTTP)
 npm run verify:dashboard        # scripts/verifyDashboardReadiness.js
 npm run sync:creditors          # scripts/sync-member-creditors.js
 npm run sync:gl-journals        # scripts/sync-gl-journal-entries.js
 ```
 
-`npm test` is a stub — there is no test suite. `scripts/export-import-db.sh` plus
+`npm test` is a stub — run the node:test suite directly: `node --test tests/*.test.js` (set `LOG_ROOT`
+to an absolute temp dir). `scripts/export-import-db.sh` plus
 `scripts/DB_EXPORT_IMPORT.md`/`BACKUP_RESTORE.md` cover Postgres dump/restore for this database —
 **`DB_EXPORT_IMPORT.md`'s example commands embed a real local Postgres password; treat that file as
 sensitive and don't paste its contents elsewhere.**

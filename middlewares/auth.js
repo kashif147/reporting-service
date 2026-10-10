@@ -10,13 +10,41 @@ const { tenantContextMiddleware } = require("@membership/policy-middleware");
  * (body/query/params) tenantId that disagrees as a non-blocking
  * TenantContextMismatch event — it never returns 403.
  *
- * ENFORCE BLOCKER (do NOT fix here): `authenticate`'s legacy Bearer fallback
- * uses `jwt.decode()` WITHOUT signature verification, so req.tenantId on that
- * path is NOT cryptographically trusted. WARN adoption is safe because it is
- * non-blocking, but this fallback MUST be fixed (verify or remove) before this
- * service is switched to enforce mode. See parked item R1.
+ * Phase 2B (audit R3): `authenticate`'s legacy Bearer fallback now VERIFIES the
+ * token (HS256 against JWT_SECRET, fail closed) instead of the former unverified
+ * decode-only fallback, so req.tenantId on that path is cryptographically trusted.
  */
 const tenantContextWarn = tenantContextMiddleware({ mode: "warn" });
+
+const jwt = require("jsonwebtoken");
+
+/**
+ * Verify a platform (ProjectShell) JWT: HS256 only, expiry enforced, 30s clock
+ * tolerance, FAIL CLOSED when JWT_SECRET is absent. Returns { valid, payload }
+ * or { valid:false, reason } with a non-sensitive reason category only.
+ */
+const verifyProjectShellToken = (token) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return { valid: false, reason: "JWT_SECRET_MISSING" };
+  try {
+    const payload = jwt.verify(token, secret, {
+      algorithms: ["HS256"],
+      clockTolerance: 30,
+    });
+    if (!payload || typeof payload !== "object") {
+      return { valid: false, reason: "MALFORMED_TOKEN" };
+    }
+    return { valid: true, payload };
+  } catch (err) {
+    if (err && err.name === "TokenExpiredError") {
+      return { valid: false, reason: "TOKEN_EXPIRED" };
+    }
+    if (err && err.name === "NotBeforeError") {
+      return { valid: false, reason: "TOKEN_NOT_ACTIVE" };
+    }
+    return { valid: false, reason: "INVALID_TOKEN" };
+  }
+};
 
 /**
  * AUTHENTICATION MIDDLEWARE ONLY
@@ -133,21 +161,24 @@ const authenticate = async (req, res, next) => {
 
     const token = authHeader.substring(7);
 
-    // For legacy support, decode token (without verification - gateway already did that)
-    // In production, gateway should always verify, so this is fallback only
+    // Legacy Bearer fallback: verify signature + expiry (HS256, JWT_SECRET).
+    // Microsoft RS256 tokens are verified at the gateway and arrive via the
+    // gateway-header path above, never as a direct Bearer here.
     try {
-      const jwt = require("jsonwebtoken");
-      const decoded = jwt.decode(token); // Decode without verification for fallback
-
-      if (!decoded) {
+      const verification = verifyProjectShellToken(token);
+      if (!verification.valid) {
+        console.warn(
+          `[AUTH] Bearer token verification failed: ${verification.reason}`
+        );
         return res.status(401).json({
           error: {
-            message: "Invalid token format",
+            message: "Invalid token",
             code: "INVALID_TOKEN",
             status: 401,
           },
         });
       }
+      const decoded = verification.payload;
 
       const tenantId =
         decoded.tenantId || decoded.tid || decoded.extension_tenantId;
@@ -226,5 +257,6 @@ module.exports = {
   ensureAuthenticated: authenticate, // Alias for backward compatibility
   requireTenant,
   tenantContextWarn, // Phase 1A WARN guard; pair as router.use(authenticate, tenantContextWarn)
+  verifyProjectShellToken,
 };
 

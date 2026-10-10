@@ -1,10 +1,12 @@
 /**
- * Load membership dashboard seed dimensions from user-service MongoDB lookups/products.
+ * Load membership dashboard seed dimensions from user-service lookups/products over
+ * HTTP (operator JWT via OPERATOR_BEARER_TOKEN — see ./operatorRequest.js). No direct
+ * access to user-service's MongoDB.
  */
 const path = require("path");
 const fs = require("fs");
-const mongoose = require("mongoose");
-const { LookupType, Lookup, Product } = require("./mongoLookupModels");
+const userServiceClient = require("../../lib/userServiceClient");
+const { buildOperatorRequest } = require("./operatorRequest");
 
 const DEFAULT_MEMBERSHIP_PRODUCT_TYPE_ID = "68dae613c5b15073d66b891f";
 
@@ -40,73 +42,62 @@ function weightedPick(items) {
   return items[items.length - 1];
 }
 
-async function connectMongo() {
-  const mongoUri =
-    process.env.MONGO_URI ||
-    process.env.USER_SERVICE_MONGO_URI ||
-    process.env.MONGODB_URI;
-  if (!mongoUri) {
-    throw new Error(
-      "MONGO_URI (or USER_SERVICE_MONGO_URI) is required to load lookup data"
-    );
-  }
-  if (mongoose.connection.readyState === 1) return;
-  await mongoose.connect(mongoUri, {
-    serverSelectionTimeoutMS: 30000,
-    connectTimeoutMS: 30000,
-  });
+/** Kept for script compatibility; there is no Mongo connection any more. */
+async function disconnectMongo() {}
+
+function resolveLookupType(lookupTypes, spec) {
+  const live = (lookupTypes || []).filter((t) => t && t.isdeleted !== true);
+  return (
+    live.find((t) => spec.codes?.includes(t.code)) ||
+    live.find(
+      (t) =>
+        spec.names?.includes(t.lookuptype) ||
+        spec.names?.includes(t.displayname),
+    ) ||
+    null
+  );
 }
 
-async function disconnectMongo() {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
-}
-
-async function resolveLookupType(spec) {
-  const or = [];
-  if (spec.codes?.length) or.push({ code: { $in: spec.codes } });
-  if (spec.names?.length) {
-    or.push({ lookuptype: { $in: spec.names } });
-    or.push({ displayname: { $in: spec.names } });
-  }
-  if (!or.length) return null;
-  return LookupType.findOne({
-    $or: or,
-    isdeleted: { $ne: true },
-  }).lean();
-}
-
-async function loadLookupsForType(typeDoc) {
+async function loadLookupsForType(typeDoc, req) {
   if (!typeDoc?._id) return [];
-  return Lookup.find({
-    lookuptypeId: typeDoc._id,
-    isactive: { $ne: false },
-    isdeleted: { $ne: true },
-  })
-    .select("lookupname DisplayName Parentlookupid lookuptypeId code")
-    .lean();
+  const results = await userServiceClient.getLookupsByTypeWithHierarchy(
+    typeDoc._id,
+    req,
+    req.tenantId,
+  );
+  return results
+    .map((r) => (r?.lookup && typeof r.lookup === "object" ? r.lookup : r))
+    .filter((l) => l && l._id != null)
+    .map((l) => ({
+      _id: String(l._id),
+      lookupname: l.lookupname,
+      DisplayName: l.DisplayName,
+      code: l.code,
+      Parentlookupid:
+        l.Parentlookupid && typeof l.Parentlookupid === "object"
+          ? l.Parentlookupid._id
+          : l.Parentlookupid || null,
+    }));
 }
 
-async function loadMembershipCategories(tenantId) {
+async function loadMembershipCategories(req) {
   const productTypeId =
     process.env.MEMBERSHIP_CATEGORY_PRODUCT_TYPE_ID ||
     DEFAULT_MEMBERSHIP_PRODUCT_TYPE_ID;
-
-  const query = {
-    productTypeId: new mongoose.Types.ObjectId(productTypeId),
-    isDeleted: { $ne: true },
-    isActive: { $ne: false },
-    status: { $ne: "Inactive" },
-  };
-  if (tenantId) query.tenantId = tenantId;
-
-  let products = await Product.find(query).select("name code").lean();
-  if (!products.length && tenantId) {
-    const { tenantId: _t, ...withoutTenant } = query;
-    products = await Product.find(withoutTenant).select("name code").lean();
-  }
-  return products.map((p) => p.name).filter(Boolean);
+  // user-service scopes /api/products to the token's tenant; no cross-tenant fallback.
+  const products = await userServiceClient.listProducts(req, req.tenantId, {
+    productTypeId,
+  });
+  return products
+    .filter(
+      (p) =>
+        p &&
+        p.isDeleted !== true &&
+        p.isActive !== false &&
+        p.status !== "Inactive",
+    )
+    .map((p) => p.name)
+    .filter(Boolean);
 }
 
 function buildLocationHierarchy(workLocations, branches, regions) {
@@ -234,32 +225,27 @@ async function loadSeedLookups(tenantId) {
   }
 
   try {
-    await connectMongo();
-
-    const typeEntries = await Promise.all(
-      Object.entries(TYPE_SPECS).map(async ([key, spec]) => [
+    const req = buildOperatorRequest({ requestedTenantId: tenantId });
+    const lookupTypes = await userServiceClient.listLookupTypes(req, req.tenantId);
+    const types = Object.fromEntries(
+      Object.entries(TYPE_SPECS).map(([key, spec]) => [
         key,
-        await resolveLookupType(spec),
+        resolveLookupType(lookupTypes, spec),
       ])
     );
-    const types = Object.fromEntries(typeEntries);
 
-    const [regions, branches, workLocations] = await Promise.all([
-      loadLookupsForType(types.region),
-      loadLookupsForType(types.branch),
-      loadLookupsForType(types.workLocation),
-    ]);
+    const [regions, branches, workLocations, grades, sections, paymentLookups] =
+      await Promise.all([
+        loadLookupsForType(types.region, req),
+        loadLookupsForType(types.branch, req),
+        loadLookupsForType(types.workLocation, req),
+        loadLookupsForType(types.grade, req),
+        loadLookupsForType(types.section, req),
+        loadLookupsForType(types.paymentType, req),
+      ]);
 
-    const [grades, sections, paymentLookups] = await Promise.all([
-      loadLookupsForType(types.grade),
-      loadLookupsForType(types.section),
-      loadLookupsForType(types.paymentType),
-    ]);
-
-    const categoryNames = await loadMembershipCategories(tenantId);
+    const categoryNames = await loadMembershipCategories(req);
     const locations = buildLocationHierarchy(workLocations, branches, regions);
-
-    await disconnectMongo();
 
     if (!categoryNames.length) {
       throw new Error(
@@ -286,7 +272,7 @@ async function loadSeedLookups(tenantId) {
         ? weightedItems(paymentNames)
         : weightedItems(["Salary Deduction"]),
       locations,
-      source: "mongodb",
+      source: "user-service-api",
     };
 
     console.log(
@@ -294,9 +280,8 @@ async function loadSeedLookups(tenantId) {
     );
     return bundle;
   } catch (err) {
-    await disconnectMongo().catch(() => {});
     if (fixture) {
-      console.warn(`  Mongo lookup load failed (${err.message}); using fixture`);
+      console.warn(`  user-service lookup load failed (${err.message}); using fixture`);
       return fixture;
     }
     throw err;

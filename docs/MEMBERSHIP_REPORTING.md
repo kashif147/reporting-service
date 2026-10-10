@@ -75,7 +75,7 @@ By default the endpoint **reads existing snapshots and monthly aggregates** only
 
 `POST /reports/membership/workplace-breakdown` (requires `reporting:read`)
 
-Rolling monthly member counts per **work location**, grouped by **region**, with MoM/YoY deltas and **official (IRO)** from `membership_location_lookup` (sync via `node scripts/sync-location-lookups.js --tenant=TENANT_ID`).
+Rolling monthly member counts per **work location**, grouped by **region**, with MoM/YoY deltas and **official (IRO)** from `membership_location_lookup` (synced from user-service's HTTP API — `GET /api/lookuptype` + `GET /api/lookup/by-type/:id/hierarchy` — with the caller's forwarded identity when the table is empty for the tenant or `syncLookups: true`; the caller needs `lookup:read`/`lookupType:read`. Manual: `OPERATOR_BEARER_TOKEN=<CRM JWT> node scripts/sync-location-lookups.js`, tenant taken from the verified token. Only officer user id, initials and display name are stored — never email.)
 
 Body example:
 
@@ -152,23 +152,23 @@ npm run migrate
 
 ### Seed dashboard demo data (regions + categories)
 
-Populates `membership_listing` with `seed-dashboard-*` rows using **live lookup data** from user-service MongoDB (membership category products, regions/branches/work locations, grades, primary sections, payment types), then rebuilds snapshots and monthly aggregates.
+Populates `membership_listing` with `seed-dashboard-*` rows using **live lookup data** from user-service's HTTP API (membership category products, regions/branches/work locations, grades, primary sections, payment types), then rebuilds snapshots and monthly aggregates.
 
-Requires `MONGO_URI` (user-service database). The seed script also loads `backend/user-service/.env.staging` when present.
+Requires `OPERATOR_BEARER_TOKEN` — a CRM user JWT with `lookup:read`, `lookupType:read` and `product:read` for the target tenant. It is verified locally against `JWT_SECRET`; the tenant comes from the token (`TENANT_ID`, if set, must match). reporting-service never reads user-service's MongoDB.
 
 ```bash
 cd backend/reporting-service
 
 # Local
-TENANT_ID=your-tenant-id npm run seed:dashboard
+OPERATOR_BEARER_TOKEN=<jwt> TENANT_ID=your-tenant-id npm run seed:dashboard
 
 # Replace existing seed rows
-TENANT_ID=your-tenant-id node scripts/seedMembershipDashboard.js --clear --count=850
+OPERATOR_BEARER_TOKEN=<jwt> TENANT_ID=your-tenant-id node scripts/seedMembershipDashboard.js --clear --count=850
 
-# Docker on VM (pass Mongo URI from user-service)
+# Docker on VM
 docker compose exec \
-  -e MONGO_URI='mongodb+srv://...' \
-  -e TENANT_ID=68cbf7806080b4621d469d34 \
+  -e OPERATOR_BEARER_TOKEN="$TOKEN" \
+  -e TENANT_ID=<tenant-id> \
   reporting-service node scripts/seedMembershipDashboard.js --clear
 ```
 
@@ -177,7 +177,7 @@ Optional env:
 | Variable | Purpose |
 |----------|---------|
 | `MEMBERSHIP_CATEGORY_PRODUCT_TYPE_ID` | Product type for categories (default `68dae613c5b15073d66b891f`) |
-| `SEED_LOOKUPS_FIXTURE` | Path to JSON fallback if Mongo is unreachable |
+| `SEED_LOOKUPS_FIXTURE` | Path to JSON fallback if user-service is unreachable |
 | `SEED_LOOKUPS_FIXTURE_ONLY=true` | Skip Mongo; use fixture only |
 
 Use the same `TENANT_ID` / `DEFAULT_TENANT_ID` as the frontend sends on dashboard API calls. Remove demo data with `--clear` (deletes only `subscription_id` like `seed-dashboard-%`).

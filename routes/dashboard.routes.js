@@ -21,66 +21,10 @@ router.post(
   dashboardController.getMembershipDashboard
 );
 
-// Overview
-router.get(
-  "/overview",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getOverview
-);
-
-// Trends
-router.get(
-  "/trends",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getTrends
-);
-
-// Joiners / Leavers
-router.get(
-  "/joiners",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getJoiners
-);
-router.get(
-  "/leavers",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getLeavers
-);
-
-// Net Change
-router.get(
-  "/net",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getNetChange
-);
-
-// Distributions
-router.get(
-  "/categories",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getCategoryDistribution
-);
-router.get(
-  "/grades",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getGradeDistribution
-);
-router.get(
-  "/sections",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getSectionDistribution
-);
-
-// Workplaces / Regions
-router.get(
-  "/workplaces",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getWorkplaceSummary
-);
-router.get(
-  "/regions",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getRegionBranchSummary
-);
+// The 10 legacy GET routes (/overview, /trends, /joiners, /leavers, /net, /categories,
+// /grades, /sections, /workplaces, /regions) were removed in Phase 2B: they read global
+// (non-tenant-scoped) mv_* materialized views and their handlers called an undefined
+// `next`. No frontend/portal/backend/n8n caller used them; the CRM dashboard uses
+// POST /dashboard/membership above.
 
 module.exports = router;

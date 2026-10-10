@@ -17,3 +17,15 @@ This service's own `Template` model covers its own reporting/dashboard grids onl
 Listing report's Save View templates are owned by profile-service, not here (reporting-service only
 supplies the underlying listing data). See `TEMPLATE_IMPLEMENTATION_PLAYBOOK.md` at the repo root
 for the full per-grid ownership map before adding a new `Template`-model route here.
+
+## Data owned by other services: HTTP only
+
+reporting-service never connects to another service's MongoDB. Work-location hierarchy and
+officer display fields (`reports.membership_location_lookup`) come from user-service via
+`lib/userServiceClient.js` (`GET /api/lookuptype`, `GET /api/lookup/by-type/:id/hierarchy`),
+forwarding the caller's identity, with rows written only under the caller's trusted
+`req.tenantId` (`services/locationLookupSync.service.js`). `USER_SERVICE_MONGO_URI` is no
+longer read anywhere; base URL is `USER_SERVICE_URL` (falls back to `POLICY_SERVICE_URL`).
+Operator scripts (`scripts/sync-location-lookups.js`, `scripts/seedMembershipDashboard.js`)
+use `OPERATOR_BEARER_TOKEN` (see `scripts/lib/operatorRequest.js`). Lookups are still
+platform-global inside user-service — per-tenant lookups are a separate user-service change.

@@ -127,7 +127,7 @@ exports.getWorkplaceBreakdown = async (req, res, next) => {
         error: { message: "Tenant required", code: "TENANT_REQUIRED" },
       });
     }
-    const data = await getWorkplaceBreakdownReport(tenantId, req.body || {});
+    const data = await getWorkplaceBreakdownReport(tenantId, req.body || {}, req);
     res.json({ status: "success", data });
   } catch (err) {
     if (err.statusCode === 400) {

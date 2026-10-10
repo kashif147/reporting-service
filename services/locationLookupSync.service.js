@@ -1,10 +1,24 @@
 /**
- * Sync work-location lookup hierarchy + officers from user-service MongoDB
- * into reporting Postgres. Uses a dedicated mongoose connection so we never
- * disconnect reporting-service's own Mongo (grid templates / Save View).
+ * Sync the work-location lookup hierarchy (region / branch / work location) and the
+ * assigned officer's display fields from user-service into reporting Postgres
+ * (`reports.membership_location_lookup`).
+ *
+ * Data comes ONLY from user-service's HTTP API (GET /api/lookuptype and
+ * GET /api/lookup/by-type/:lookuptypeId/hierarchy), called with the caller's
+ * forwarded identity. reporting-service never opens a connection to user-service's
+ * MongoDB (database-per-service rule).
+ *
+ * Tenancy: rows are written under the trusted tenant of the request (req.tenantId as
+ * established by authenticate + tenantContextWarn), never a body/query value. Lookups
+ * are platform-global in user-service today (per-tenant lookups are a separate Phase 2A
+ * item) — this sync only stores what user-service returns to that caller.
+ *
+ * Officer data minimisation: only the officer's user id, initials and display name are
+ * kept. The officer's email (which user-service includes in its populated officer
+ * object) is never persisted or returned.
  */
-const mongoose = require("mongoose");
 const { upsertLocationLookups } = require("../repositories/locationLookup.repository");
+const userServiceClient = require("../lib/userServiceClient");
 
 const TYPE_SPECS = {
   region: { codes: ["REGION"], names: ["Region"] },
@@ -12,145 +26,20 @@ const TYPE_SPECS = {
   workLocation: { codes: ["WORKLOC"], names: ["Work Location", "workLocation"] },
 };
 
-const lookupTypeSchema = new mongoose.Schema(
-  {
-    code: String,
-    lookuptype: String,
-    displayname: String,
-    ParentlookuptypeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "LookupType",
-    },
-    isactive: Boolean,
-    isdeleted: Boolean,
-  },
-  { collection: "lookuptypes", bufferCommands: false },
-);
-
-const lookupSchema = new mongoose.Schema(
-  {
-    code: String,
-    lookupname: String,
-    DisplayName: String,
-    Parentlookupid: { type: mongoose.Schema.Types.ObjectId, ref: "Lookup" },
-    lookuptypeId: { type: mongoose.Schema.Types.ObjectId, ref: "LookupType" },
-    officer: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    isactive: Boolean,
-    isdeleted: Boolean,
-  },
-  { collection: "lookups", bufferCommands: false },
-);
-
-const userSchema = new mongoose.Schema(
-  {
-    userFirstName: String,
-    userLastName: String,
-    userFullName: String,
-  },
-  { collection: "users", bufferCommands: false },
-);
-
-let userServiceConnection = null;
-let userServiceConnectPromise = null;
-
-function resolveUserServiceMongoUri() {
-  return (
-    process.env.USER_SERVICE_MONGO_URI ||
-    process.env.USER_SERVICE_MONGODB_URI ||
-    ""
-  ).trim();
-}
-
-function resolveScriptMongoUri() {
-  const dedicated = resolveUserServiceMongoUri();
-  if (dedicated) return dedicated;
-  return (process.env.MONGO_URI || process.env.MONGODB_URI || "").trim();
-}
-
-function maskMongoUri(uri) {
-  if (!uri) return "(not set)";
-  return uri.replace(/\/\/([^:@/]+):([^@/]+)@/, "//$1:***@");
-}
-
-function getUserServiceConnection({ forScript = false } = {}) {
-  const mongoUri = forScript ? resolveScriptMongoUri() : resolveUserServiceMongoUri();
-  if (!mongoUri) {
-    throw new Error(
-      forScript
-        ? "USER_SERVICE_MONGO_URI (or MONGO_URI for scripts) is required to sync location lookups"
-        : "USER_SERVICE_MONGO_URI is required to sync location lookups",
-    );
-  }
-
-  if (!userServiceConnection) {
-    userServiceConnection = mongoose.createConnection(mongoUri, {
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 30000,
-      maxPoolSize: 5,
-      bufferCommands: false,
-    });
-  }
-
-  return userServiceConnection;
-}
-
-function getModels(connection) {
-  const LookupType =
-    connection.models.SyncLookupType ||
-    connection.model("SyncLookupType", lookupTypeSchema);
-  const Lookup =
-    connection.models.SyncLookup ||
-    connection.model("SyncLookup", lookupSchema);
-  const User =
-    connection.models.SyncUser || connection.model("SyncUser", userSchema);
-  return { LookupType, Lookup, User };
-}
-
-async function ensureUserServiceMongoConnected(options = {}) {
-  const connection = getUserServiceConnection(options);
-  if (connection.readyState === 1) return connection;
-
-  if (!userServiceConnectPromise) {
-    userServiceConnectPromise = connection
-      .asPromise()
-      .then(() => {
-        console.log(
-          `[locationLookupSync] user-service Mongo connected (${connection.name})`,
-        );
-        return connection;
-      })
-      .catch((error) => {
-        userServiceConnectPromise = null;
-        const uri = options.forScript
-          ? resolveScriptMongoUri()
-          : resolveUserServiceMongoUri();
-        console.error(
-          `[locationLookupSync] user-service Mongo connection failed (${maskMongoUri(uri)}):`,
-          error.message,
-        );
-        throw error;
-      });
-  }
-
-  return userServiceConnectPromise;
-}
-
-async function closeUserServiceMongoConnection() {
-  userServiceConnectPromise = null;
-  if (!userServiceConnection) return;
-  if (userServiceConnection.readyState !== 0) {
-    await userServiceConnection.close();
-  }
-  userServiceConnection = null;
-}
-
 function label(doc) {
-  return (doc.DisplayName || doc.lookupname || doc.name || "").trim();
+  return String(doc?.DisplayName || doc?.lookupname || doc?.name || "").trim();
+}
+
+function idOf(value) {
+  if (value == null) return null;
+  if (typeof value === "object") {
+    return value._id != null ? String(value._id) : null;
+  }
+  return String(value);
 }
 
 function officerInitials(user) {
-  if (!user) return null;
+  if (!user || typeof user !== "object") return null;
   const first = String(user.userFirstName || "").trim();
   const last = String(user.userLastName || "").trim();
   if (first && last) return `${first[0]}${last[0]}`.toUpperCase();
@@ -164,7 +53,7 @@ function officerInitials(user) {
 }
 
 function officerDisplayName(user) {
-  if (!user) return null;
+  if (!user || typeof user !== "object") return null;
   const full = String(user.userFullName || "").trim();
   if (full) return full;
   const first = String(user.userFirstName || "").trim();
@@ -172,161 +61,144 @@ function officerDisplayName(user) {
   return `${first} ${last}`.trim() || null;
 }
 
-async function resolveLookupType(LookupType, spec) {
-  const or = [];
-  if (spec.codes?.length) or.push({ code: { $in: spec.codes } });
-  if (spec.names?.length) {
-    or.push({ lookuptype: { $in: spec.names } });
-    or.push({ displayname: { $in: spec.names } });
-  }
-  if (!or.length) return null;
-  return LookupType.findOne({
-    $or: or,
-    isdeleted: { $ne: true },
-  }).lean();
+/**
+ * Pick the lookup type for a spec from user-service's lookuptype list, mirroring the
+ * previous query: code match first, then lookuptype/displayname name match, ignoring
+ * deleted types.
+ */
+function resolveLookupType(lookupTypes, spec) {
+  const live = (lookupTypes || []).filter((t) => t && t.isdeleted !== true);
+  const byCode = live.find((t) => spec.codes?.includes(t.code));
+  if (byCode) return byCode;
+  return (
+    live.find(
+      (t) =>
+        spec.names?.includes(t.lookuptype) ||
+        spec.names?.includes(t.displayname),
+    ) || null
+  );
 }
 
-async function loadLookupsForType(Lookup, typeDoc) {
+/** Reduce a user-service formatted lookup to only the fields reporting needs. */
+function toNode(result) {
+  const lookup = result?.lookup && typeof result.lookup === "object" ? result.lookup : result;
+  if (!lookup || lookup._id == null) return null;
+  const officer = lookup.officer;
+  return {
+    _id: String(lookup._id),
+    name: label(lookup),
+    parentId: idOf(lookup.Parentlookupid),
+    officerUserId: idOf(officer),
+    officerInitials: officerInitials(officer),
+    officerDisplayName: officerDisplayName(officer),
+  };
+}
+
+async function loadNodesForType(typeDoc, req, tenantId) {
   if (!typeDoc?._id) return [];
-  return Lookup.find({
-    lookuptypeId: typeDoc._id,
-    isactive: { $ne: false },
-    isdeleted: { $ne: true },
-  })
-    .select("lookupname DisplayName Parentlookupid lookuptypeId code officer")
-    .lean();
+  const results = await userServiceClient.getLookupsByTypeWithHierarchy(
+    typeDoc._id,
+    req,
+    tenantId,
+  );
+  return results.map(toNode).filter(Boolean);
 }
 
-async function loadUsersByIds(User, ids) {
-  const unique = [...new Set(ids.filter(Boolean).map(String))];
-  if (!unique.length) return new Map();
-  const objectIds = unique
-    .filter((id) => mongoose.Types.ObjectId.isValid(id))
-    .map((id) => new mongoose.Types.ObjectId(id));
-  if (!objectIds.length) return new Map();
-  const users = await User.find({ _id: { $in: objectIds } })
-    .select("userFirstName userLastName userFullName")
-    .lean();
-  return new Map(users.map((u) => [String(u._id), u]));
-}
-
-function buildHierarchyMaps(regions, branches, workLocations) {
-  const byId = new Map();
-  for (const list of [regions, branches, workLocations]) {
-    for (const row of list) {
-      byId.set(String(row._id), row);
-    }
-  }
-  const regionById = new Map(regions.map((r) => [String(r._id), label(r)]));
-  const branchById = new Map(branches.map((b) => [String(b._id), label(b)]));
-  return { byId, regionById, branchById };
-}
-
-function resolveParentChain(nodeId, byId, regionById, branchById) {
-  let branchName = null;
-  let regionName = null;
+function resolveParentChain(parentId, byId, regionIds, branchIds) {
   let branchNode = null;
   let regionNode = null;
-  let parentId = nodeId ? String(nodeId) : null;
-
-  while (parentId) {
-    const parent = byId.get(parentId);
+  const seen = new Set();
+  let current = parentId;
+  while (current && !seen.has(current)) {
+    seen.add(current);
+    const parent = byId.get(current);
     if (!parent) break;
-    const parentLabel = label(parent);
-    if (branchById.has(parentId)) {
-      branchName = parentLabel;
-      branchNode = parent;
-    }
-    if (regionById.has(parentId)) {
-      regionName = parentLabel;
-      regionNode = parent;
-    }
-    parentId = parent.Parentlookupid ? String(parent.Parentlookupid) : null;
+    if (branchIds.has(current)) branchNode = parent;
+    if (regionIds.has(current)) regionNode = parent;
+    current = parent.parentId;
   }
-
-  return { branchName, regionName, branchNode, regionNode };
+  return { branchNode, regionNode };
 }
 
-async function fetchLocationLookupRowsFromMongo(models) {
-  const { LookupType, Lookup, User } = models;
-  const [regionType, branchType, workLocType] = await Promise.all([
-    resolveLookupType(LookupType, TYPE_SPECS.region),
-    resolveLookupType(LookupType, TYPE_SPECS.branch),
-    resolveLookupType(LookupType, TYPE_SPECS.workLocation),
-  ]);
+/**
+ * Build membership_location_lookup rows from user-service via HTTP.
+ * Only the fields below leave this function — no officer email.
+ */
+async function fetchLocationLookupRows(req, tenantId) {
+  const lookupTypes = await userServiceClient.listLookupTypes(req, tenantId);
+  const regionType = resolveLookupType(lookupTypes, TYPE_SPECS.region);
+  const branchType = resolveLookupType(lookupTypes, TYPE_SPECS.branch);
+  const workLocType = resolveLookupType(lookupTypes, TYPE_SPECS.workLocation);
 
   const [regions, branches, workLocations] = await Promise.all([
-    loadLookupsForType(Lookup, regionType),
-    loadLookupsForType(Lookup, branchType),
-    loadLookupsForType(Lookup, workLocType),
+    loadNodesForType(regionType, req, tenantId),
+    loadNodesForType(branchType, req, tenantId),
+    loadNodesForType(workLocType, req, tenantId),
   ]);
 
-  const { byId, regionById, branchById } = buildHierarchyMaps(
-    regions,
-    branches,
-    workLocations,
-  );
+  const byId = new Map();
+  for (const list of [regions, branches, workLocations]) {
+    for (const node of list) byId.set(node._id, node);
+  }
+  const regionIds = new Set(regions.map((r) => r._id));
+  const branchIds = new Set(branches.map((b) => b._id));
 
-  const officerIds = [];
-  for (const wl of workLocations) {
-    if (wl.officer) officerIds.push(String(wl.officer));
-  }
-  for (const b of branches) {
-    if (b.officer) officerIds.push(String(b.officer));
-  }
-  for (const r of regions) {
-    if (r.officer) officerIds.push(String(r.officer));
-  }
-
-  const usersById = await loadUsersByIds(User, officerIds);
   const rows = [];
-
   for (const wl of workLocations) {
-    const wlName = label(wl);
-    if (!wlName) continue;
-
-    const { branchName, regionName, branchNode, regionNode } =
-      resolveParentChain(wl.Parentlookupid, byId, regionById, branchById);
-
-    const officerUser = wl.officer ? usersById.get(String(wl.officer)) : null;
-    const branchOfficer = branchNode?.officer
-      ? String(branchNode.officer)
-      : null;
-    const regionOfficer = regionNode?.officer
-      ? String(regionNode.officer)
-      : null;
-
+    if (!wl.name) continue;
+    const { branchNode, regionNode } = resolveParentChain(
+      wl.parentId,
+      byId,
+      regionIds,
+      branchIds,
+    );
     rows.push({
-      work_location: wlName,
-      branch: branchName,
-      region: regionName,
-      lookup_id: String(wl._id),
-      officer_user_id: wl.officer ? String(wl.officer) : null,
-      officer_initials: officerInitials(officerUser),
-      officer_display_name: officerDisplayName(officerUser),
-      branch_officer_user_id: branchOfficer,
-      region_officer_user_id: regionOfficer,
+      work_location: wl.name,
+      branch: branchNode?.name || null,
+      region: regionNode?.name || null,
+      lookup_id: wl._id,
+      officer_user_id: wl.officerUserId,
+      officer_initials: wl.officerInitials,
+      officer_display_name: wl.officerDisplayName,
+      branch_officer_user_id: branchNode?.officerUserId || null,
+      region_officer_user_id: regionNode?.officerUserId || null,
     });
   }
-
   return rows;
 }
 
-async function syncLocationLookupsForTenant(tenantId, options = {}) {
-  const connection = await ensureUserServiceMongoConnected(options);
-  const models = getModels(connection);
-  const rows = await fetchLocationLookupRowsFromMongo(models);
+/**
+ * Resolve the trusted tenant from the authenticated request. req.tenantId is re-pinned
+ * by tenantContextWarn; req.ctx.tenantId is set by authenticate. They must agree.
+ */
+function trustedTenantOf(req) {
+  const tenantId = req?.tenantId || req?.ctx?.tenantId || null;
+  if (!tenantId) return null;
+  if (req?.ctx?.tenantId && String(req.ctx.tenantId) !== String(tenantId)) {
+    return null;
+  }
+  return String(tenantId);
+}
+
+/**
+ * Sync location lookups for the caller's trusted tenant.
+ * @param {object} req authenticated Express request (or operator-script pseudo-request)
+ */
+async function syncLocationLookupsForRequest(req) {
+  const tenantId = trustedTenantOf(req);
+  if (!tenantId) {
+    const err = new Error("Trusted tenant context required for location lookup sync");
+    err.statusCode = 400;
+    throw err;
+  }
+  const rows = await fetchLocationLookupRows(req, tenantId);
   return upsertLocationLookups(tenantId, rows);
 }
 
 module.exports = {
-  syncLocationLookupsForTenant,
-  fetchLocationLookupRowsFromMongo,
-  ensureUserServiceMongoConnected,
-  closeUserServiceMongoConnection,
+  syncLocationLookupsForRequest,
+  fetchLocationLookupRows,
+  trustedTenantOf,
   officerInitials,
   officerDisplayName,
-  // Legacy script helpers — no-op / isolated close only
-  connectMongo: (options) => ensureUserServiceMongoConnected(options),
-  disconnectMongo: closeUserServiceMongoConnection,
 };

@@ -86,10 +86,12 @@ test("15 WARN only across routers; no enforce", () => {
     assert.ok(!/enforce/.test(read(path.join("routes", f))));
   }
 });
-test("16 legacy jwt.decode enforce-blocker preserved in auth.js", () => {
+// Phase 2B (R3): the legacy Bearer fallback is now verified (was an unverified
+// jwt.decode enforce-blocker). Updated from "jwt.decode preserved" to the new spec.
+test("16 legacy Bearer fallback verifies the token (no jwt.decode)", () => {
   const a = read(path.join("middlewares", "auth.js"));
-  assert.match(a, /jwt\.decode\(/, "jwt.decode fallback must still be present (unfixed, documented as enforce blocker)");
-  assert.match(a, /ENFORCE BLOCKER/i);
+  assert.ok(!/jwt\.decode\(/.test(a), "unverified jwt.decode fallback must be gone");
+  assert.match(a, /jwt\.verify\(token, secret, \{\s*algorithms: \["HS256"\]/);
 });
 test("17 installed package exposes tenantContextMiddleware + resolveTenantContext", () => {
   assert.equal(typeof policyMw.tenantContextMiddleware, "function");
