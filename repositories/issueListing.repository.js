@@ -39,7 +39,14 @@ async function upsertIssueListing(row) {
      VALUES (${placeholders}, NOW())
      ON CONFLICT (tenant_id, issue_id) DO UPDATE SET
        ${updates},
-       updated_at = NOW()`,
+       updated_at = NOW()
+     -- Out-of-order / replayed snapshots: only a snapshot at least as new as the stored row
+     -- (source lastUpdated) may overwrite it; equal timestamps re-apply idempotently. A row
+     -- without a source timestamp accepts any snapshot; a snapshot without one never
+     -- overwrites a timestamped row.
+     WHERE issue_listing.last_updated IS NULL
+        OR (EXCLUDED.last_updated IS NOT NULL
+            AND EXCLUDED.last_updated >= issue_listing.last_updated)`,
     values
   );
 }

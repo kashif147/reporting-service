@@ -50,7 +50,10 @@ function issueListingRow(data, meta = {}) {
     date_resolved: toTimestamp(data.dateResolved),
     due_date: toTimestamp(data.dueDate),
     resolution: data.resolution || null,
-    last_updated: toTimestamp(data.lastUpdated) || new Date().toISOString(),
+    // Source modification time from issue-service (max(lastActivityAt, updatedAt)). It orders
+    // snapshots in upsertIssueListing, so never substitute receive time: a missing/invalid
+    // value stays NULL and can never win over a row that has a real timestamp.
+    last_updated: toTimestamp(data.lastUpdated),
     is_current: data.isCurrent !== false,
     last_event_id: meta.eventId || null,
     last_event_type: meta.eventType || REPORTING_SNAPSHOT,
