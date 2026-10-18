@@ -41,7 +41,8 @@ test("1 tenantContextWarn exists (exported)", () => {
 });
 test("2 mode is warn; no enforce", () => {
   const a = read(path.join("middlewares", "auth.js"));
-  assert.match(a, /tenantContextMiddleware\(\{\s*mode:\s*"warn"\s*\}\)/);
+  assert.match(a, /tenantContextMiddleware\(\)/); // mode comes from TENANT_CONTEXT_MODE (default warn)
+  assert.ok(!/mode:\s*"warn"/.test(a), "no hard-coded warn override");
   assert.ok(!/mode:\s*"enforce"/.test(a));
 });
 test("3 dashboard uses router.use(authenticate, tenantContextWarn)", () => { assert.match(read(path.join("routes", "dashboard.routes.js")), /router\.use\(authenticate,\s*tenantContextWarn\)/); });

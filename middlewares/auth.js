@@ -14,7 +14,7 @@ const { tenantContextMiddleware } = require("@membership/policy-middleware");
  * token (HS256 against JWT_SECRET, fail closed) instead of the former unverified
  * decode-only fallback, so req.tenantId on that path is cryptographically trusted.
  */
-const tenantContextWarn = tenantContextMiddleware({ mode: "warn" });
+const tenantContextWarn = tenantContextMiddleware();
 
 const jwt = require("jsonwebtoken");
 
