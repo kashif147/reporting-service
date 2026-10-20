@@ -16,7 +16,7 @@ LOCAL_HOST="localhost"
 LOCAL_PORT="5432"
 LOCAL_DB="reporting_db"
 LOCAL_USER="reports_admin"
-LOCAL_PASSWORD="Letme1nplz!"
+LOCAL_PASSWORD="${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
 LOCAL_CONTAINER="reporting-postgres"
 
 # Check if PostgreSQL tools are available, otherwise use Docker

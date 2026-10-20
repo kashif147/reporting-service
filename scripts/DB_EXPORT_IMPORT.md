@@ -6,7 +6,7 @@
 
 ```bash
 # Using pg_dump - exports both schema and data by default
-PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
+PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --clean --if-exists --create --format=plain \
   -f reporting_db_backup.sql
 
@@ -17,7 +17,7 @@ PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d report
 ### Export Data Only (No Schema)
 
 ```bash
-PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
+PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --data-only --format=plain \
   -f reporting_db_data_only.sql
 
@@ -77,7 +77,7 @@ For larger databases, use custom format for compression:
 ### Export (Custom Format)
 
 ```bash
-PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
+PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --format=custom -f reporting_db_backup.dump
 ```
 

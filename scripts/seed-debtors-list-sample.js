@@ -3,7 +3,7 @@
  *
  * Usage (from reporting-service):
  *   TENANT_ID=68cbf7806080b4621d469d34 node scripts/seed-debtors-list-sample.js
- *   REPORTING_DB_URL=postgresql://reports_admin:Letme1nplz!@localhost:5432/reporting_db node scripts/seed-debtors-list-sample.js
+ *   REPORTING_DB_URL=postgresql://reports_admin:<password>@localhost:5432/reporting_db node scripts/seed-debtors-list-sample.js
  *   node scripts/seed-debtors-list-sample.js --clear
  */
 require("dotenv").config({ path: ".env.staging" });

@@ -22,7 +22,7 @@ This creates a backup file in `backups/` directory with timestamp:
 ./scripts/export-import-db.sh restore-local backups/reporting_db_backup_20241215_143022.sql
 
 # Or manually
-PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -p 5432 -U reports_admin -d postgres \
   -f backups/reporting_db_backup_20241215_143022.sql
 ```
 
@@ -51,7 +51,7 @@ cd reporting-service
 #### 2. Manual Backup Command
 
 ```bash
-PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
+PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --clean --if-exists --create --format=plain \
   -f my_backup.sql
 ```
@@ -66,7 +66,7 @@ docker exec reporting-postgres pg_dump -U reports_admin -d reporting_db \
 #### 4. Compressed Backup (for large databases)
 
 ```bash
-PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
+PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h localhost -p 5432 -U reports_admin -d reporting_db \
   --format=custom -f backup.dump
 ```
 
@@ -75,7 +75,7 @@ PGPASSWORD='Letme1nplz!' pg_dump -h localhost -p 5432 -U reports_admin -d report
 #### 1. Restore to Local Database (Plain SQL)
 
 ```bash
-PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -p 5432 -U reports_admin -d postgres \
   -f backups/reporting_db_backup_20241215_143022.sql
 ```
 
@@ -102,7 +102,7 @@ docker exec -i reporting-postgres psql -U reports_admin -d reporting_db < backup
 #### 4. Restore Compressed Backup
 
 ```bash
-PGPASSWORD='Letme1nplz!' pg_restore -h localhost -p 5432 -U reports_admin \
+PGPASSWORD="$POSTGRES_PASSWORD" pg_restore -h localhost -p 5432 -U reports_admin \
   -d reporting_db --clean --if-exists backup.dump
 ```
 
@@ -136,7 +136,7 @@ PGPASSWORD="$STAGING_DB_PASSWORD" pg_dump -h "$STAGING_DB_HOST" -p 5432 \
   --format=plain -f staging_backup.sql
 
 # 2. Restore to local
-PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -p 5432 -U reports_admin -d postgres \
   -f staging_backup.sql
 ```
 
@@ -151,7 +151,7 @@ PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres 
 # Make your changes...
 
 # If something goes wrong, restore:
-PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -p 5432 -U reports_admin -d postgres \
   -f backups/reporting_db_backup_YYYYMMDD_HHMMSS.sql
 ```
 
@@ -199,7 +199,7 @@ ls -lh backups/
 - If still failing, manually drop database first:
 
 ```bash
-PGPASSWORD='Letme1nplz!' psql -h localhost -p 5432 -U reports_admin -d postgres \
+PGPASSWORD="$POSTGRES_PASSWORD" psql -h localhost -p 5432 -U reports_admin -d postgres \
   -c "DROP DATABASE IF EXISTS reporting_db;"
 ```
 
