@@ -17,7 +17,7 @@ async function insertMembershipEvent({
       event_id, event_type, tenant_id, subscription_id, profile_id,
       membership_number, occurred_at, source_service, correlation_id, payload
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
-    ON CONFLICT (event_id) DO NOTHING`,
+    ON CONFLICT (tenant_id, event_id) DO NOTHING`,
     [
       eventId,
       eventType,

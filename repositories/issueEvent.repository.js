@@ -15,7 +15,7 @@ async function insertIssueEvent({
       event_id, event_type, tenant_id, issue_id,
       occurred_at, source_service, correlation_id, payload
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb)
-    ON CONFLICT (event_id) DO NOTHING`,
+    ON CONFLICT (tenant_id, event_id) DO NOTHING`,
     [
       eventId,
       eventType,
