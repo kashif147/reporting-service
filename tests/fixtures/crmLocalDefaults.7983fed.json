@@ -1,0 +1,174 @@
+{
+  "commit": "7983fed",
+  "path": "src/config/grid-column-defaults.json",
+  "note": "CRM built-in pages applied today when no reachable system default exists (SaveViewMenu GRID_SYSTEM_DEFAULT_PAGES path).",
+  "pages": {
+    "workplacebreakdownreport": {
+      "screenKey": "WorkplaceBreakdownReport",
+      "templateType": "workplacebreakdownreport",
+      "service": "reporting-service",
+      "filters": {
+        "membershipStatuses": {
+          "operator": "equal_to",
+          "values": [
+            "Active"
+          ]
+        },
+        "regions": {
+          "operator": "equal_to",
+          "values": []
+        },
+        "workLocations": {
+          "operator": "equal_to",
+          "values": []
+        }
+      },
+      "columns": [
+        {
+          "dataIndex": "workLocation",
+          "title": "Work Location",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 220
+        },
+        {
+          "dataIndex": "official",
+          "title": "Official",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 80
+        },
+        {
+          "dataIndex": "mom",
+          "title": "MoM",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 72,
+          "align": "right"
+        }
+      ]
+    },
+    "debtorslistreport": {
+      "screenKey": "DebtorsListReport",
+      "templateType": "debtorslistreport",
+      "service": "reporting-service",
+      "filters": {
+        "reportingPeriod": {
+          "operator": "between",
+          "values": []
+        }
+      },
+      "columns": [
+        {
+          "dataIndex": "membershipNo",
+          "title": "Membership No",
+          "filterValueType": "string",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 130
+        },
+        {
+          "dataIndex": "fullName",
+          "title": "Name",
+          "filterValueType": "string",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 200
+        },
+        {
+          "dataIndex": "fullAddress",
+          "title": "Address",
+          "filterValueType": "string",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 240
+        },
+        {
+          "dataIndex": "grade",
+          "title": "Grade",
+          "filterValueType": "string",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 110
+        },
+        {
+          "dataIndex": "workLocation",
+          "title": "Work Location",
+          "filterValueType": "string",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 160
+        },
+        {
+          "dataIndex": "amount",
+          "title": "Balance",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 100,
+          "align": "right"
+        },
+        {
+          "dataIndex": "current",
+          "title": "Current",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 90,
+          "align": "right"
+        },
+        {
+          "dataIndex": "days30",
+          "title": "30 Days",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 90,
+          "align": "right"
+        },
+        {
+          "dataIndex": "days60",
+          "title": "60 Days",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 90,
+          "align": "right"
+        },
+        {
+          "dataIndex": "days90",
+          "title": "90 Days",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 90,
+          "align": "right"
+        },
+        {
+          "dataIndex": "over90",
+          "title": "Over 90 Days",
+          "filterValueType": "number",
+          "isGride": true,
+          "isVisible": true,
+          "ellipsis": true,
+          "width": 110,
+          "align": "right"
+        }
+      ]
+    }
+  }
+}
