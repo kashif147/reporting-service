@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "source": {
+    "kind": "mixed",
+    "perType": {
+      "workplacebreakdownreport": {
+        "kind": "tenant-row-copy",
+        "note": "Field-for-field copy of the MULTIAUTH system default whose tenantId is stored as an ObjectId (unreachable by the runtime's string tenant query). It carries a tenant filter (membershipCategories not_equal_to [...]) the CRM manifest lacks; copied as the owner decided ('STRING-owned equivalent').",
+        "row": "\u2026a7f493",
+        "rowUpdatedAt": "2026-06-06T10:14:49.068Z"
+      },
+      "debtorslistreport": {
+        "kind": "crm-manifest",
+        "repo": "ProjectShell-1",
+        "path": "src/config/grid-column-defaults.json",
+        "commit": "7983fed",
+        "note": "identical to the MULTIAUTH ObjectId-tenant row (columns, labels, filters)"
+      }
+    },
+    "snapshotTaken": "2026-11-01"
+  },
+  "templates": {
+    "workplacebreakdownreport": {
+      "name": "System default",
+      "templateType": "workplacebreakdownreport",
+      "aliases": [
+        "WorkplaceBreakdownReport",
+        "workplaceBreakdownReport"
+      ],
+      "columns": [
+        "workLocation",
+        "official",
+        "mom"
+      ],
+      "columnLabels": {
+        "workLocation": "Work Location",
+        "official": "Official",
+        "mom": "MoM"
+      },
+      "filters": {
+        "membershipCategories": {
+          "operator": "not_equal_to",
+          "values": [
+            "Affiliate members (non-practicing)",
+            "General (all grades)",
+            "Lecturing (employed in universities and IT institutes)",
+            "Postgraduate Student",
+            "Private nursing home",
+            "Short-term/Relief (under 12 hrs/wk average)"
+          ]
+        },
+        "membershipStatuses": {
+          "operator": "equal_to",
+          "values": [
+            "Active"
+          ]
+        }
+      },
+      "visibleFilters": []
+    },
+    "debtorslistreport": {
+      "name": "System default",
+      "templateType": "debtorslistreport",
+      "aliases": [
+        "DebtorsListReport",
+        "debtorsListReport"
+      ],
+      "columns": [
+        "membershipNo",
+        "fullName",
+        "fullAddress",
+        "grade",
+        "workLocation",
+        "amount",
+        "current",
+        "days30",
+        "days60",
+        "days90",
+        "over90"
+      ],
+      "columnLabels": {
+        "membershipNo": "Membership No",
+        "fullName": "Name",
+        "fullAddress": "Address",
+        "grade": "Grade",
+        "workLocation": "Work Location",
+        "amount": "Balance",
+        "current": "Current",
+        "days30": "30 Days",
+        "days60": "60 Days",
+        "days90": "90 Days",
+        "over90": "Over 90 Days"
+      },
+      "filters": {
+        "reportingPeriod": {
+          "operator": "between",
+          "values": []
+        }
+      },
+      "visibleFilters": []
+    }
+  }
+}
