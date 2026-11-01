@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "source": {
+    "kind": "crm-local-default",
+    "repo": "ProjectShell-1",
+    "path": "src/config/grid-column-defaults.json",
+    "commit": "7983fed",
+    "decision": "Owner decision 2026-11-01: preserve the CURRENTLY EFFECTIVE behaviour. MULTIAUTH's stored defaults for these grids have an ObjectId tenantId and are unreachable, so today the CRM applies its built-in page (SaveViewMenu 'System default (local)': visible columns, titles and page.filters of grid-column-defaults.json). The string-owned rows reproduce exactly that.",
+    "historicalDebt": {
+      "row": "\u2026a7f493",
+      "rowUpdatedAt": "2026-06-06T10:14:49.068Z",
+      "note": "The unreachable ObjectId-owned workplacebreakdownreport row carries membershipCategories not_equal_to [6 categories] (historical/unconfirmed configuration). It is NOT reactivated by this repair; the row stays untouched as legacy evidence."
+    },
+    "snapshotTaken": "2026-11-01"
+  },
+  "templates": {
+    "workplacebreakdownreport": {
+      "name": "System default",
+      "templateType": "workplacebreakdownreport",
+      "aliases": [
+        "WorkplaceBreakdownReport",
+        "workplaceBreakdownReport"
+      ],
+      "columns": [
+        "workLocation",
+        "official",
+        "mom"
+      ],
+      "columnLabels": {
+        "workLocation": "Work Location",
+        "official": "Official",
+        "mom": "MoM"
+      },
+      "filters": {
+        "membershipStatuses": {
+          "operator": "equal_to",
+          "values": [
+            "Active"
+          ]
+        },
+        "regions": {
+          "operator": "equal_to",
+          "values": []
+        },
+        "workLocations": {
+          "operator": "equal_to",
+          "values": []
+        }
+      },
+      "visibleFilters": []
+    },
+    "debtorslistreport": {
+      "name": "System default",
+      "templateType": "debtorslistreport",
+      "aliases": [
+        "DebtorsListReport",
+        "debtorsListReport"
+      ],
+      "columns": [
+        "membershipNo",
+        "fullName",
+        "fullAddress",
+        "grade",
+        "workLocation",
+        "amount",
+        "current",
+        "days30",
+        "days60",
+        "days90",
+        "over90"
+      ],
+      "columnLabels": {
+        "membershipNo": "Membership No",
+        "fullName": "Name",
+        "fullAddress": "Address",
+        "grade": "Grade",
+        "workLocation": "Work Location",
+        "amount": "Balance",
+        "current": "Current",
+        "days30": "30 Days",
+        "days60": "60 Days",
+        "days90": "90 Days",
+        "over90": "Over 90 Days"
+      },
+      "filters": {
+        "reportingPeriod": {
+          "operator": "between",
+          "values": []
+        }
+      },
+      "visibleFilters": []
+    }
+  }
+}
