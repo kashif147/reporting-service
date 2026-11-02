@@ -12,7 +12,7 @@
  * The SYNC_AUTH_TOKEN / INTERNAL_AUTH_TOKEN Bearer option and the self-asserted gateway
  * headers were removed: account-service rejects them (401 "Invalid gateway request"), and a
  * user token would make the call a user call, not an internal one.
- * The public gateway strips x-internal-request, so ACCOUNT_SERVICE_URL must reach
+ * Per the platform contract the public gateway strips x-internal-request, so ACCOUNT_SERVICE_URL must reach
  * account-service directly (internal network), not through the public gateway.
  */
 require("dotenv").config({ path: ".env.staging" });
