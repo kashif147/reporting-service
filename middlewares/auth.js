@@ -252,8 +252,30 @@ const requireTenant = (req, res, next) => {
   next();
 };
 
+/**
+ * PDP rollout P2: every reporting / dashboard / Save View route is CRM-only.
+ *
+ * The verified caller must be a CRM user (`req.user.userType === "CRM"`, from the gateway-verified
+ * x-user-type header or the verified Bearer claim). A PORTAL caller, or a caller with no userType at all,
+ * is refused here before the PDP is asked - policy-middleware would otherwise default a missing
+ * x-user-type to PORTAL, and no reporting data is member-facing. Mount AFTER `authenticate`.
+ */
+const requireCrmUser = (req, res, next) => {
+  if (!req.user || req.user.userType !== "CRM") {
+    return res.status(403).json({
+      error: {
+        message: "Access denied. Reporting is available to CRM users only.",
+        code: "CRM_USER_REQUIRED",
+        status: 403,
+      },
+    });
+  }
+  return next();
+};
+
 module.exports = {
   authenticate,
+  requireCrmUser,
   ensureAuthenticated: authenticate, // Alias for backward compatibility
   requireTenant,
   tenantContextWarn, // Phase 1A WARN guard; pair as router.use(authenticate, tenantContextWarn)

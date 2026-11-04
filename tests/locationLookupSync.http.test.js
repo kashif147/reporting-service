@@ -154,6 +154,7 @@ function gatewayHeaders(tenantId, userId = "U1") {
     "x-user-id": userId,
     "x-tenant-id": tenantId,
     "x-user-email": "caller@example.test",
+    "x-user-type": "CRM", // P2: every reporting router is CRM-only (requireCrmUser)
     "x-user-roles": "[]",
     "x-user-permissions": "[]",
     authorization: `Bearer gw-${tenantId}`,
@@ -363,17 +364,20 @@ test("D1 removed legacy /dashboard/* GET routes return 404 (both mounts), even w
 test("D2 surviving endpoints still mount with their permission", async () => {
   reset();
   policyMode = "marker";
-  const posts = ["/api/dashboard", "/api/dashboard/membership",
-    "/api/reports/membership/preset/x", "/api/reports/membership/listing",
-    "/api/reports/membership/compare", "/api/reports/membership/live-stats",
-    "/api/reports/membership/statistics", "/api/reports/membership/workplace-breakdown",
-    "/api/reports/membership/creditors-list", "/api/reports/membership/debtors-list",
-    "/api/reports/membership/year-reconciliation",
-    "/reports/membership/listing", "/dashboard/membership"];
-  for (const p of posts) {
+  // P2 (§4 Q4): each route asks for its own reporting family (tests/reportingFamilies.p2.test.js has the
+  // full route x {family held, other family, none, PORTAL} matrix).
+  const posts = [
+    ["/api/dashboard", "reporting.statistics"], ["/api/dashboard/membership", "reporting.statistics"],
+    ["/api/reports/membership/preset/x", "reporting.listings"], ["/api/reports/membership/listing", "reporting.listings"],
+    ["/api/reports/membership/compare", "reporting.statistics"], ["/api/reports/membership/live-stats", "reporting.statistics"],
+    ["/api/reports/membership/statistics", "reporting.statistics"], ["/api/reports/membership/workplace-breakdown", "reporting.statistics"],
+    ["/api/reports/membership/creditors-list", "reporting.finance"], ["/api/reports/membership/debtors-list", "reporting.finance"],
+    ["/api/reports/membership/year-reconciliation", "reporting.statistics"],
+    ["/reports/membership/listing", "reporting.listings"], ["/dashboard/membership", "reporting.statistics"]];
+  for (const [p, resource] of posts) {
     const r = await call("POST", p, { headers: gatewayHeaders(TENANT_A), body: {} });
     assert.equal(r.status, 299, `${p} → ${r.status}`);
-    assert.equal(r.json.resource, "reporting");
+    assert.equal(r.json.resource, resource, p);
     assert.equal(r.json.action, "read");
   }
   const sb = await call("POST", "/api/reports/membership/snapshots/build", { headers: gatewayHeaders(TENANT_A), body: {} });
@@ -410,7 +414,7 @@ test("J1 Bearer fallback: forged (unsigned/wrong-secret) token rejected 401", as
 test("J2 Bearer fallback: valid HS256 token accepted; tenant from verified claim", async () => {
   reset();
   policyMode = "marker";
-  const tok = jwt.sign({ sub: "U9", tenantId: TENANT_A }, process.env.JWT_SECRET, { algorithm: "HS256" });
+  const tok = jwt.sign({ sub: "U9", tenantId: TENANT_A, userType: "CRM" }, process.env.JWT_SECRET, { algorithm: "HS256" });
   const r = await call("POST", "/api/reports/membership/listing", {
     headers: { authorization: `Bearer ${tok}` }, body: { tenantId: TENANT_B },
   });
