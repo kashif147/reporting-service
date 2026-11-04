@@ -50,7 +50,12 @@ sensitive and don't paste its contents elsewhere.**
 
 ## Auth
 
-Reporting and dashboard routes require the `reporting:read` policy permission; grid template writes
-(`POST/PUT/DELETE /api/templates`) require `reporting:write`. Auth mechanics themselves are the
+Every route is CRM-only (`requireCrmUser` in `middlewares/auth.js`: a PORTAL or missing `userType` is
+403 before the PDP is asked) and asks the PDP for one reporting family (PDP rollout P2, no generic
+`reporting:read`): `reporting.statistics:read` (dashboards, statistics, compare, live-stats,
+workplace-breakdown, year-reconciliation), `reporting.listings:read` (presets, listing),
+`reporting.finance:read` (creditors/debtors lists), `reporting.templates:read|write` (Save View
+`/api/templates`). `POST /snapshots/build` keeps `reporting:write`, which has no catalogue code, so only
+ASU passes. `tests/reportingFamilies.p2.test.js` pins the route -> family table. Auth mechanics themselves are the
 platform-standard gateway-header/Bearer-JWT pattern validated via `@membership/policy-middleware` —
 see that package's own `CLAUDE.md` for how the validation works.

@@ -1,25 +1,20 @@
 const express = require("express");
 const router = express.Router();
 const dashboardController = require("../controllers/dashboard.controller");
-const { authenticate, requireTenant, tenantContextWarn } = require("../middlewares/auth");
+const { authenticate, requireTenant, requireCrmUser, tenantContextWarn } = require("../middlewares/auth");
 const { defaultPolicyMiddleware } = require("../middlewares/policy.middleware");
 
-// Apply authentication and tenant validation to all routes
+// Apply authentication, tenant validation and the CRM-only gate to all routes
 router.use(authenticate, tenantContextWarn);
 router.use(requireTenant);
+router.use(requireCrmUser);
 
-// All dashboard routes require reporting:read permission
-router.post(
-  "/",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getUnifiedDashboard
-);
+// PDP rollout P2 (§4 Q4): the dashboards are aggregate membership statistics -> the statistics family.
+const statisticsRead = defaultPolicyMiddleware.requirePermission("reporting.statistics", "read");
 
-router.post(
-  "/membership",
-  defaultPolicyMiddleware.requirePermission("reporting", "read"),
-  dashboardController.getMembershipDashboard
-);
+router.post("/", statisticsRead, dashboardController.getUnifiedDashboard);
+
+router.post("/membership", statisticsRead, dashboardController.getMembershipDashboard);
 
 // The 10 legacy GET routes (/overview, /trends, /joiners, /leavers, /net, /categories,
 // /grades, /sections, /workplaces, /regions) were removed in Phase 2B: they read global
